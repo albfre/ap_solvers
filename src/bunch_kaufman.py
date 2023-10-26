@@ -1,12 +1,11 @@
 from mpmath import mp
 
-def symmetric_indefinite_factorization(A):
+def symmetric_indefinite_factorization(A_in):
+  A = mp.matrix(A_in)
   assert(A.rows == A.cols)
   n = A.rows
-  zero = mp.mpf(0.0)
-  one = mp.mpf(1.0)
-  alpha = (one + mp.sqrt(mp.mpf(17))) / mp.mpf(8)
-  ipiv = [zero] * n
+  alpha = (mp.one + mp.sqrt(mp.mpf(17))) / mp.mpf(8)
+  ipiv = [mp.zero] * n
 
   def max_in_row_or_column(i_begin, i_end, constant_index, check_column):
     i_max = 0
@@ -26,7 +25,7 @@ def symmetric_indefinite_factorization(A):
     absakk = abs(A[k, k])
     # imax is the row-index of the largest off-diagonal element in column k, and colmax is its absolute value
     i_max, col_max = max_in_row_or_column(k + 1, n, k, True)
-    if (absakk == zero and col_max == zero):
+    if (absakk == mp.zero and col_max == mp.zero):
       # Column k is zero: set info and continue
       if info == 0:
         info = k
@@ -67,7 +66,7 @@ def symmetric_indefinite_factorization(A):
       if k_step == 1:
         # 1-by-1 pivot block D(k): column k now holds W(k) = L(k)*D(k) where L(k) is the k-th column of L
         # Perform a rank-1 update of A(k+1:n,k+1:n) as A := A - L(k)*D(k)*L(k)**T = A - W(k)*(1/D(k))*W(k)**T
-        r1 = one / A[k, k]
+        r1 = mp.one / A[k, k]
         for j in range(k + 1, n):
           r1ajk = r1 * A[j, k]
           for i in range(j, n):
@@ -87,7 +86,7 @@ def symmetric_indefinite_factorization(A):
           d21 = A[k + 1, k]
           d11 = A[k + 1, k + 1] / d21
           d22 = A[k, k] / d21
-          t = one / (d11 * d22 - one)
+          t = mp.one / (d11 * d22 - mp.one)
           d21 = t / d21
 
           for j in range(k + 2, n):
@@ -111,11 +110,10 @@ def symmetric_indefinite_factorization(A):
   return A, ipiv, info
 
 
-def solve_using_factorization(L, ipiv, b):
+def solve_using_factorization(L, ipiv, b_in):
+  b = mp.matrix(b_in)
   # Solve A*X = B, where A = L*D*L**T.
   n = b.rows
-  zero = mp.mpf(0.0)
-  one = mp.mpf(1.0)
 
   # First solve L*D*X = B, overwriting B with X.
   # k is the main loop index, increasing from 1 to n in steps of 1 or 2, depending on the size of the diagonal blocks.
@@ -153,7 +151,7 @@ def solve_using_factorization(L, ipiv, b):
       akm1k = L[k + 1, k]
       akm1 = L[k, k] / akm1k
       ak = L[k + 1, k + 1] / akm1k
-      denom = akm1 * ak - one
+      denom = akm1 * ak - mp.one
       bkm1 = b[k] / akm1k
       bk = b[k + 1] / akm1k
       b[k] = (ak * bkm1 - bk) / denom
@@ -163,7 +161,7 @@ def solve_using_factorization(L, ipiv, b):
   # Next solve L**T *X = B, overwriting B with X.
   # k is the main loop index, decreasing from n-1 to 0 in steps of 1 or 2, depending on the size of the diagonal blocks.
   def dgemv(i_start, j_index):
-    temp = zero
+    temp = mp.zero
     for i in range(i_start, n):
       temp += L[i, j_index] * b[i]
     b[j_index] -= temp
