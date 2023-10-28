@@ -1,9 +1,11 @@
 from src import qp
+from src import dense_mp_matrix
 
 import unittest
 import scipy
 import numpy as np
 from mpmath import mp
+import time
 
 class TestQP(unittest.TestCase):
   def test_small_qp(self):
@@ -39,7 +41,7 @@ class TestQP(unittest.TestCase):
     qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq)
 
   def test_large_qp(self):
-    n = 15
+    n = 10
     Q = mp.matrix(n, n)
     c = mp.matrix(n, 1)
     A_ineq = mp.matrix(n, n)
@@ -57,7 +59,16 @@ class TestQP(unittest.TestCase):
     b_eq = mp.matrix(1, 1)
     A_eq[0, 1] = 1 # x[0] - 2 x[1] = 0
     A_eq[0, 2] = -2
+    tic = time.time()
     qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq)
+    toc = time.time() - tic
+    print('Time mp: ' + str(toc))
+
+    tic = time.time()
+    qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix.matrix)
+    toc2 = time.time() - tic
+    print('Time dense: ' + str(toc2))
+    print('Time factor: ' + str(toc/toc2))
 
 if __name__ == "__main__":
   unittest.main()

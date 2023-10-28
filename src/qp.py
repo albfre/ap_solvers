@@ -1,11 +1,18 @@
 from mpmath import mp
 from src import bunch_kaufman
 
-def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, tol=mp.mpf('1e-20'), max_iter=100):
+def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100):
   """ minimize 0.5 x' H x + c' x
       st    Aeq x = beq
             Aineq x >= bineq
   """
+  H = matrix(H)
+  c = matrix(c)
+  A_eq = matrix(A_eq)
+  b_eq = matrix(b_eq)
+  A_ineq = matrix(A_ineq)
+  b_ineq = matrix(b_ineq)
+
   n = H.rows
   m_ineq = A_ineq.rows
   m_eq = A_eq.rows
@@ -52,7 +59,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, tol=mp.mpf('1e-20'), max_iter=100
       [ Aineq    0   -Z^-1 S  ]
   """
   m = n + m_eq + m_ineq
-  KKT = mp.matrix(m, m)
+  KKT = matrix(m, m)
   set_submatrix(KKT, H, 0, 0)
   set_submatrix(KKT, A_eq_T, 0, n)
   set_submatrix(KKT, A_ineq_T, 0, n + m_eq)
@@ -66,16 +73,16 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, tol=mp.mpf('1e-20'), max_iter=100
   # Define the function for computing the search direction
   def compute_search_direction(s, z, L, ipiv, r_grad, r_eq, r_ineq, r_s):
     r_ineqMinusYinvrS = r_ineq + elementwise_division(r_s, z) # Aineq x - s - bineq + Z^-1 (SZe - mue)
-    rhs = -mp.matrix(r_grad.tolist() + r_eq.tolist() + r_ineqMinusYinvrS.tolist())
+    rhs = -matrix(r_grad.tolist() + r_eq.tolist() + r_ineqMinusYinvrS.tolist())
 
     # Solve the KKT system
     d = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, rhs)
 
     # Extract the search direction components
     d = d.tolist()
-    dx = mp.matrix(d[:n])
-    dy = mp.matrix(d[n:n + m_eq])
-    dz = -mp.matrix(d[n + m_eq:n + m_eq + m_ineq])
+    dx = matrix(d[:n])
+    dy = matrix(d[n:n + m_eq])
+    dz = -matrix(d[n + m_eq:n + m_eq + m_ineq])
     ds = -elementwise_division(r_s + elementwise_product(s, dz), z) # -Z^-1 (rS + S dz)
 
     return dx, ds, dy, dz
@@ -86,10 +93,10 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, tol=mp.mpf('1e-20'), max_iter=100
     return min(min(-v[i] / dv[i] if dv[i] < 0 else 1 for i in range(v.rows)), mp.one)
 
   # Initialize primal and dual variables
-  x = mp.ones(n, 1)      # Primal variables
-  s = mp.ones(m_ineq, 1) # Slack variables for inequality constraints
-  y = mp.ones(m_eq, 1)   # Multipliers for equality constraints
-  z = mp.ones(m_ineq, 1) # Multipliers for inequality constraints
+  x = matrix([1] * n)      # Primal variables
+  s = matrix([1] * m_ineq) # Slack variables for inequality constraints
+  y = matrix([1] * m_eq)   # Multipliers for equality constraints
+  z = matrix([1] * m_ineq) # Multipliers for inequality constraints
   
   def get_mu(s, z):
     return (s.T * z / m_ineq)[0] if m_ineq > 0 else mp.zero
@@ -122,10 +129,8 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, tol=mp.mpf('1e-20'), max_iter=100
     dx_aff, ds_aff, dy_aff, dz_aff = compute_search_direction(s, z, L, ipiv, r_grad, r_eq, r_ineq, r_s)
     alpha_aff_p = get_max_step(s, ds_aff)
     alpha_aff_d = get_max_step(z, dz_aff)
-    z_aff = mp.matrix(z)
-    s_aff = mp.matrix(s)
-    s_aff += alpha_aff_p * ds_aff
-    z_aff += alpha_aff_d * dz_aff
+    s_aff = matrix(s) + alpha_aff_p * ds_aff
+    z_aff = matrix(z) + alpha_aff_d * dz_aff
     mu_aff = get_mu(z_aff, s_aff)
 
     # Compute aggregated centering-corrector direction

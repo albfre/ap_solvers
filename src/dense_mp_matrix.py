@@ -69,31 +69,16 @@ class matrix:
       raise ValueError("Dimensions do not match")
 
   def _elementwise(self, other, operation):
+    result = matrix(0, 0)
+    result.rows = self.rows
+    result.cols = self.cols
     if isinstance(other, matrix):
       self._verify_size(other)
-      result = matrix(0, 0)
-      result.rows = self.rows
-      result.cols = self.cols
-      result.__data = [[operation(x, y) for x, y in zip(self.__data[i], other[i])] for i in range(self.rows)]
-    else:
-      result = matrix(self)
-      for i in range(self.rows):
-        for j in range(self.cols):
-          result[i, j] += other
+      result.__data = [[operation(x, y) for x, y in zip(self.__data[i], other.__data[i])] for i in range(self.rows)]
 
-  def _ielementwise(self, other, operation):
-    if isinstance(other, matrix):
-      self._verify_size(other)
-      for i in range(self.rows):
-        self_i = self.__data[i]
-        other_i = other.__data[i]
-        for j in range(self.cols):
-          self_i[j] = operation(self_i[j], other_i[j])
     else:
-      for i in range(self.rows):
-        self_i = self.__data[i]
-        for j in range(self.cols):
-          self_i[j] = operation(self_i[j], other)
+      result.__data = [[operation(x, other) for x in row] for row in self.__data]
+    return result
 
   def __str__(self):
     return "\n".join(" ".join(str(self[i, j]) for j in range(self.cols)) for i in range(self.rows))
@@ -114,12 +99,19 @@ class matrix:
       # scalar multiplication
       return self._elementwise(other, lambda x, y: x * y)
 
+  def __rmul__(self, other):
+    if isinstance(other, matrix):
+      raise TypeError("Other should not be of type matrix")
+    return self.__mul__(other)
+
   def __neg__(self):
     return (-1) * self
 
   def __div__(self, other):
     assert(not isinstance(other, matrix))
     return (mp.one / other) * self
+
+  __truediv__ = __div__
 
   def __add__(self, other):
     return self._elementwise(other, lambda x, y: x + y)
@@ -133,12 +125,6 @@ class matrix:
   def __rsub__(self, other):
     return -self + other
 
-  def __iadd__(self, other):
-    self._ielementwise(other, lambda x, y: x + y)
-
-  def __isub__(self, other):
-    self._ielementwise(other, lambda x, y: x - y)
-
   def __len__(self):
     if self.rows == 1:
       return self.cols
@@ -147,8 +133,8 @@ class matrix:
     else:
       return self.rows # do like numpy
 
-  def transpose(self, matrix):
-    result = DenseMatrix(self.cols, self.rows)
+  def transpose(self):
+    result = matrix(self.cols, self.rows)
     for i in range(self.rows):
       for j in range(self.cols):
         result[j, i] = self[i, j]
