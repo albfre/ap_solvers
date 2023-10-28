@@ -60,15 +60,22 @@ class TestQP(unittest.TestCase):
     A_eq[0, 1] = 1 # x[0] - 2 x[1] = 0
     A_eq[0, 2] = -2
     tic = time.time()
-    qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq)
+    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq)
     toc = time.time() - tic
     print('Time mp: ' + str(toc))
 
     tic = time.time()
-    qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix.matrix)
+    x2, f2, res2, gap2, iteration2 = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix.matrix)
     toc2 = time.time() - tic
+
     print('Time dense: ' + str(toc2))
     print('Time factor: ' + str(toc/toc2))
+
+    tol = mp.mpf('1e-' + str(int(mp.dps / 2)))
+    self.assertTrue(abs(f - f2) < tol)
+    self.assertTrue(abs(res - res2) < tol)
+    self.assertTrue(abs(gap - gap2) < tol)
+    self.assertEqual(iteration, iteration2)
 
 if __name__ == "__main__":
   unittest.main()
