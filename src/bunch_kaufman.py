@@ -1,7 +1,6 @@
 from mpmath import mp
 
-def symmetric_indefinite_factorization(A_in):
-  A = mp.matrix(A_in)
+def overwriting_symmetric_indefinite_factorization(A):
   assert(A.rows == A.cols)
   n = A.rows
   alpha = (mp.one + mp.sqrt(mp.mpf(17))) / mp.mpf(8)
@@ -110,8 +109,7 @@ def symmetric_indefinite_factorization(A_in):
   return A, ipiv, info
 
 
-def solve_using_factorization(L, ipiv, b_in):
-  b = mp.matrix(b_in)
+def overwriting_solve_using_factorization(L, ipiv, b):
   # Solve A*X = B, where A = L*D*L**T.
   n = b.rows
 

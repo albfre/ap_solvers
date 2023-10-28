@@ -69,7 +69,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, tol=mp.mpf('1e-20'), max_iter=100
     rhs = -mp.matrix(r_grad.tolist() + r_eq.tolist() + r_ineqMinusYinvrS.tolist())
 
     # Solve the KKT system
-    d = bunch_kaufman.solve_using_factorization(L, ipiv, rhs)
+    d = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, rhs)
 
     # Extract the search direction components
     d = d.tolist()
@@ -113,7 +113,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, tol=mp.mpf('1e-20'), max_iter=100
 
     # Update and factorize KKT matrix
     update_matrix(s, z)
-    L, ipiv, info = bunch_kaufman.symmetric_indefinite_factorization(KKT)
+    L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(KKT.copy())
     assert(info == 0)
 
     # Use the predictor-corrector method
@@ -152,14 +152,14 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, tol=mp.mpf('1e-20'), max_iter=100
 # Helper functions for linear algebra operations
 
 def elementwise_product(x, y):
-  r = mp.matrix(x)
+  r = x.copy()
   for i in range(x.rows):
     for j in range(x.cols):
       r[i, j] *= y[i, j]
   return r
 
 def elementwise_division(x, y):
-  r = mp.matrix(x)
+  r = x.copy()
   for i in range(x.rows):
     for j in range(x.cols):
       r[i, j] /= y[i, j]
