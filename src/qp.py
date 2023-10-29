@@ -68,6 +68,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     set_submatrix(PDS, A_ineq, n + m_eq, 0)
   else:
     # Construct the normal equations system
+    assert(False)
 
   def update_matrix(s, z):
     if augmented:
