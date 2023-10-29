@@ -1,7 +1,7 @@
 from mpmath import mp
 from src import bunch_kaufman
 
-def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100):
+def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100, augmented=True):
   """ minimize 0.5 x' H x + c' x
       st    Aeq x = beq
             Aineq x >= bineq
@@ -53,37 +53,46 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
 
     return f, r_grad, r_eq, r_ineq, r_s
 
-  # Construct the augmented KKT system
-  """ [ H       Aeq'   Aineq' ]
-      [ Aeq      0      0     ]
-      [ Aineq    0   -Z^-1 S  ]
-  """
-  m = n + m_eq + m_ineq
-  KKT = matrix(m, m)
-  set_submatrix(KKT, H, 0, 0)
-  set_submatrix(KKT, A_eq_T, 0, n)
-  set_submatrix(KKT, A_ineq_T, 0, n + m_eq)
-  set_submatrix(KKT, A_eq, n, 0)
-  set_submatrix(KKT, A_ineq, n + m_eq, 0)
+  if augmented:
+    # Construct the augmented system
+    """ [ H       Aeq'   Aineq' ]
+        [ Aeq      0      0     ]
+        [ Aineq    0   -Z^-1 S  ]
+    """
+    m = n + m_eq + m_ineq
+    PDS = matrix(m, m)
+    set_submatrix(PDS, H, 0, 0)
+    set_submatrix(PDS, A_eq_T, 0, n)
+    set_submatrix(PDS, A_ineq_T, 0, n + m_eq)
+    set_submatrix(PDS, A_eq, n, 0)
+    set_submatrix(PDS, A_ineq, n + m_eq, 0)
+  else:
+    # Construct the normal equations system
 
   def update_matrix(s, z):
-    minusZinvS = -elementwise_division(s, z)
-    set_subdiagonal(KKT, minusZinvS, n + m_eq, n + m_eq)
+    if augmented:
+      minusZinvS = -elementwise_division(s, z)
+      set_subdiagonal(PDS, minusZinvS, n + m_eq, n + m_eq)
+    else:
+      assert(False)
 
   # Define the function for computing the search direction
   def compute_search_direction(s, z, L, ipiv, r_grad, r_eq, r_ineq, r_s):
     r_ineqMinusYinvrS = r_ineq + elementwise_division(r_s, z) # Aineq x - s - bineq + Z^-1 (SZe - mue)
-    rhs = -matrix(r_grad.tolist() + r_eq.tolist() + r_ineqMinusYinvrS.tolist())
 
-    # Solve the KKT system
-    d = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, rhs)
+    # Solve the PDS
+    if augmented:
+      rhs = -matrix(r_grad.tolist() + r_eq.tolist() + r_ineqMinusYinvrS.tolist())
+      d = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, rhs)
 
-    # Extract the search direction components
-    d = d.tolist()
-    dx = matrix(d[:n])
-    dy = matrix(d[n:n + m_eq])
-    dz = -matrix(d[n + m_eq:n + m_eq + m_ineq])
-    ds = -elementwise_division(r_s + elementwise_product(s, dz), z) # -Z^-1 (rS + S dz)
+      # Extract the search direction components
+      d = d.tolist()
+      dx = matrix(d[:n])
+      dy = matrix(d[n:n + m_eq])
+      dz = -matrix(d[n + m_eq:n + m_eq + m_ineq])
+      ds = -elementwise_division(r_s + elementwise_product(s, dz), z) # -Z^-1 (rS + S dz)
+    else:
+      assert(False)
 
     return dx, ds, dy, dz
 
@@ -103,7 +112,6 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
 
   def get_residual_and_gap(s, z, r_grad, r_eq, r_ineq):
     res = mp.norm(mp.matrix(r_grad.tolist() + r_eq.tolist() + r_ineq.tolist()))
-    #res = mp.norm(r_grad) + mp.norm(r_eq) + mp.norm(r_ineq)
     gap = get_mu(s, z)
     return res, gap
 
@@ -118,9 +126,12 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     if res <= tol and gap <= tol:
       break
 
-    # Update and factorize KKT matrix
+    # Update and factorize PDS matrix
     update_matrix(s, z)
-    L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(KKT.copy())
+    if augmented:
+      L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(PDS.copy())
+    else:
+      assert(False)
     assert(info == 0)
 
     # Use the predictor-corrector method

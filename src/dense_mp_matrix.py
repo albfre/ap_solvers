@@ -92,8 +92,10 @@ class matrix:
       result = matrix(self.rows, other.cols)
       for i in range(self.rows):
         for j in range(other.cols):
+          val = mp.zero
           for k in range(self.cols):
-            result[i, j] += self[i, k] * other[k, j]
+            val += self[i, k] * other[k, j]
+          result[i, j] = val
       return result
     else:
       # scalar multiplication
