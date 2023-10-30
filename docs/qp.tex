@@ -1,0 +1,184 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage[numbers]{natbib}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\title{QP}
+\author{albin.fredriksson }
+\date{March 2023}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+Primal:
+\begin{align*}
+\underset{x}{\text{minimize}} \quad & 0.5 x' H x + c' x\\
+\text{subject to} \quad
+& A x = b\\
+& C x \geq d\\
+\end{align*}
+
+Replace $C x \geq d$ with $C x - s = d$ and $s \geq 0$.
+
+Log-barrier:
+\begin{align*}
+\underset{x}{\text{minimize}} \quad & 0.5 x' H x + c' x - \mu e' \log(s) \\
+\text{subject to} \quad
+& A x = b\\
+& C x - s = d\\
+\end{align*}
+
+
+Lagrangian:
+\[
+L(x, s, y, z) = 0.5 x' H x + c' x - \mu e' \log(s) + y' (Ax - b) - z' (C x - s - d )
+\]
+First-order optimality conditions:
+\begin{align*}
+\nabla_x L(x,s,y,z) &= H x + c + A' y - C' z = 0\\
+\nabla_s L(x,s,y,z) &= z - \mu S^{-1}e = 0\\
+\nabla_y L(x,s,y,z) &= A x - b = 0\\
+-\nabla_z L(x,s,y,z) &= C x - s - d = 0\\
+\end{align*}
+
+Rearrangement of the first-order optimality conditions:
+\begin{align*}
+Hx + A' y - C' z &= -c\\
+A x - b &= 0\\
+C x - s - d &= 0\\
+SZe  &=  \mu e\\
+\end{align*}
+
+Step:
+\begin{align*}
+H(x + \Delta x) + A' (y + \Delta y) - C' (z + \Delta z) &= -c\\
+A (x + \Delta x) - b &= 0\\
+C (x + \Delta x) - (s + \Delta s) - d &= 0\\
+(S + \Delta S) (Z + \Delta Z)e  &=  \mu e\\
+\end{align*}
+Rearrange with delta on left and drop nonlinear terms in delta:
+\begin{align*}
+H \Delta x + A' \Delta y - C' \Delta z &= -c - Hx - A' y + C' z \\
+A \Delta x &= b - A x\\
+C \Delta x - \Delta s &= d - C x + s\\
+S \Delta z + Z \Delta s &= \mu e - SZe\\
+\end{align*}
+
+
+Newton step:
+\[
+\left(
+\begin{array}{cccc}
+H & A' & C' & 0 \\
+A & 0 & 0 & 0\\
+C & 0 & 0 & I\\
+0 & 0 & -S & -Z
+\end{array}
+\right)
+\left(
+\begin{array}{c}
+\Delta x\\
+\Delta y\\
+-\Delta z\\
+-\Delta s
+\end{array}
+\right)
+=
+-\left(
+\begin{array}{c}
+Hx + A' y - C' z + c\\
+A x - b\\
+C x - s - d\\
+S Z e - \mu e
+\end{array}
+\right) =
+-\left(
+\begin{array}{c}
+r_x\\
+r_y\\
+r_z\\
+r_s
+\end{array}
+\right)
+\]
+Utilizing that $S \Delta z + Z \Delta s = -r_s$, we get
+\[
+\Delta s = -Z^{-1} (r_s + S \Delta z)
+\]
+or, written in another way
+\[
+-Z^{-1} S \Delta z = \Delta s + Z^{-1} r_s
+\]
+we can remove $\Delta s$ from the third equation and reduce the system to
+\[
+\left(
+\begin{array}{cccc}
+H & A' & C' \\
+A & 0 & 0 \\
+C & 0 & -Z^{-1} S \\
+\end{array}
+\right)
+\left(
+\begin{array}{c}
+\Delta x\\
+\Delta y\\
+-\Delta z\\
+\end{array}
+\right)
+=
+-\left(
+\begin{array}{c}
+r_x\\
+r_y \\
+r_z + Z^{-1} r_s
+\end{array}
+\right)
+\]
+This can be solved using a symmetric indefinite solver.
+
+Using $C \Delta x + Z^{-1} S \Delta z = - (r_z + Z^{-1} r_s)$, we get
+\[
+\Delta z = -Z S^{-1} (C \Delta x + r_z + Z^{-1} r_s)
+\]
+which means that
+\[
+-C \Delta z = C Z S^{-1} C \Delta x + CZS^{-1} (r_z + Z^{-1} r_s)
+\]
+so we can reduce the system even more:
+\[
+\left(
+\begin{array}{cccc}
+H + C' ZS^{-1}C& A' \\
+A & 0 \\
+\end{array}
+\right)
+\left(
+\begin{array}{c}
+\Delta x\\
+\Delta y\\
+\end{array}
+\right)
+=
+-\left(
+\begin{array}{c}
+r_x + C' Z S^{-1} (r_z + Z^{-1} r_s)\\
+r_y \\
+\end{array}
+\right)
+\]
+If we had used a penalty $(1/2\mu) (Ax - b)' (Ax - b)$ with $y = (Ax-b)/\mu$, we would have had $-\mu I$ instead of the zero. In that case we could have used $A \Delta x - \mu \Delta y = - r_y$ to get
+\[
+\Delta y = (A \Delta x + r_y) / \mu
+\]
+which could be used to reduce the system to
+\[
+(H + C' Z S^{-1} C + A' A / \mu) \Delta x= - r_x  + C' S^{-1}(Z r_z + r_s)  + A' r_y / \mu
+
+\]
+
+\end{document}
