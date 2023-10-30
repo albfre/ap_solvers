@@ -7,7 +7,7 @@ def run_tests(test_directory="tests"):
   test_suite = test_loader.discover(test_directory)
 
   # Run the tests
-  test_runner = unittest.TextTestRunner()
+  test_runner = unittest.TextTestRunner(verbosity=2)
   result = test_runner.run(test_suite)
 
   # Check the test result

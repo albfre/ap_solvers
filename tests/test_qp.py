@@ -2,6 +2,8 @@ from src import qp
 from src import dense_mp_matrix
 
 import unittest
+from parameterized import parameterized
+
 import scipy
 import numpy as np
 from mpmath import mp
@@ -44,7 +46,9 @@ class TestQP(unittest.TestCase):
     self.assertTrue(abs(res) < tol)
     self.assertTrue(abs(gap) < tol)
 
-  def test_larger_qp(self):
+  @parameterized.expand([False, True])
+  def test_larger_qp(self, augmented):
+    print("Running test with augmented=%s" % augmented)
     mp.dps = 100
     n = 10
     Q = mp.matrix(n, n)
@@ -65,7 +69,6 @@ class TestQP(unittest.TestCase):
     A_eq[0, 1] = 1 # x[0] - 2 x[1] = 0
     A_eq[0, 2] = -2
     tol = mp.mpf('1e-20')
-    augmented = False
 
     tic = time.time()
     x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol, augmented=augmented)
