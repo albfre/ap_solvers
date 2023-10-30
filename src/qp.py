@@ -47,11 +47,11 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     if m_ineq > 0:
       r_grad -= A_ineq_T * z
 
-    r_eq = A_eqx - b_eq
-    r_ineq = A_ineqx - s - b_ineq
+    r_y = A_eqx - b_eq
+    r_z = A_ineqx - s - b_ineq
     r_s = eval_r_s(s, z, mu) # SZe - mu e
 
-    return f, r_grad, r_eq, r_ineq, r_s
+    return f, r_grad, r_y, r_z, r_s
 
   if augmented:
     # Construct the augmented system
@@ -67,33 +67,48 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     set_submatrix(PDS, A_eq, n, 0)
     set_submatrix(PDS, A_ineq, n + m_eq, 0)
   else:
-    # Construct the normal equations system
-    assert(False)
+    # Construct the system after another reduction
+    """ [ H + Aineq' Z S^-1 Aineq  Aeq' ]
+        [ Aeq      0 ]
+    """
+    m = n + m_eq
+    PDS = matrix(m, m)
+    set_submatrix(PDS, A_eq_T, 0, n)
+    set_submatrix(PDS, A_eq, n, 0)
 
   def update_matrix(s, z):
     if augmented:
-      minusZinvS = -elementwise_division(s, z)
-      set_subdiagonal(PDS, minusZinvS, n + m_eq, n + m_eq)
+      ZinvS = elementwise_division(s, z)
+      set_subdiagonal(PDS, -ZinvS, n + m_eq, n + m_eq)
     else:
-      assert(False)
+      SinvZ = diag(elementwise_division(z, s), matrix) 
+      H_part = H + A_ineq_T * SinvZ * A_ineq
+      set_submatrix(PDS, H_part, 0, 0)
 
   # Define the function for computing the search direction
-  def compute_search_direction(s, z, L, ipiv, r_grad, r_eq, r_ineq, r_s):
-    r_ineqMinusYinvrS = r_ineq + elementwise_division(r_s, z) # Aineq x - s - bineq + Z^-1 (SZe - mue)
+  def compute_search_direction(s, z, L, ipiv, r_grad, r_y, r_z, r_s):
+    r_zMinusZinvr_s = r_z + elementwise_division(r_s, z) # Aineq x - s - bineq + Z^-1 (SZe - mue)
 
     # Solve the PDS
     if augmented:
-      rhs = -matrix(r_grad.tolist() + r_eq.tolist() + r_ineqMinusYinvrS.tolist())
-      d = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, rhs)
-
-      # Extract the search direction components
-      d = d.tolist()
-      dx = matrix(d[:n])
-      dy = matrix(d[n:n + m_eq])
-      dz = -matrix(d[n + m_eq:n + m_eq + m_ineq])
-      ds = -elementwise_division(r_s + elementwise_product(s, dz), z) # -Z^-1 (rS + S dz)
+      rhs = -matrix(r_grad.tolist() + r_y.tolist() + r_zMinusZinvr_s.tolist())
     else:
-      assert(False)
+      SinvZ = elementwise_division(z, s)
+      r_x = r_grad + A_ineq_T * elementwise_product(SinvZ, r_zMinusZinvr_s)
+      rhs = -matrix(r_x.tolist() + r_y.tolist())
+
+    d = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, rhs)
+
+    # Extract the search direction components
+    d= d.tolist()
+    dx = matrix(d[:n])
+    dy = matrix(d[n:n + m_eq])
+
+    if augmented:
+      dz = -matrix(d[n + m_eq:n + m_eq + m_ineq])
+    else:
+      dz = -elementwise_product(SinvZ, A_ineq * dx + r_z + elementwise_division(r_s, z))
+    ds = -elementwise_division(r_s + elementwise_product(s, dz), z) # -Z^-1 (rS + S dz)
 
     return dx, ds, dy, dz
 
@@ -111,17 +126,17 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
   def get_mu(s, z):
     return (s.T * z / m_ineq)[0] if m_ineq > 0 else mp.zero
 
-  def get_residual_and_gap(s, z, r_grad, r_eq, r_ineq):
-    res = mp.norm(mp.matrix(r_grad.tolist() + r_eq.tolist() + r_ineq.tolist()))
+  def get_residual_and_gap(s, z, r_grad, r_y, r_z):
+    res = mp.norm(mp.matrix(r_grad.tolist() + r_y.tolist() + r_z.tolist()))
     gap = get_mu(s, z)
     return res, gap
 
   # Perform the interior point optimization
   for iteration in range(max_iter):
-    f, r_grad, r_eq, r_ineq, r_s = eval_func(x, s, y, z, 0)
+    f, r_grad, r_y, r_z, r_s = eval_func(x, s, y, z, 0)
 
     # Check the convergence criterion
-    res, gap = get_residual_and_gap(s, z, r_grad, r_eq, r_ineq)
+    res, gap = get_residual_and_gap(s, z, r_grad, r_y, r_z)
     print_dps = 10
     print('%s. f: %s, res: %s, gap: %s' % (iteration, mp.nstr(f, print_dps), mp.nstr(res, print_dps), mp.nstr(gap, print_dps)))
     if res <= tol and gap <= tol:
@@ -129,16 +144,13 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
 
     # Update and factorize PDS matrix
     update_matrix(s, z)
-    if augmented:
-      L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(PDS.copy())
-    else:
-      assert(False)
+    L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(PDS.copy())
     assert(info == 0)
 
     # Use the predictor-corrector method
 
     # Compute affine scaling step
-    dx_aff, ds_aff, dy_aff, dz_aff = compute_search_direction(s, z, L, ipiv, r_grad, r_eq, r_ineq, r_s)
+    dx_aff, ds_aff, dy_aff, dz_aff = compute_search_direction(s, z, L, ipiv, r_grad, r_y, r_z, r_s)
     alpha_aff_p = get_max_step(s, ds_aff)
     alpha_aff_d = get_max_step(z, dz_aff)
     s_aff = matrix(s) + alpha_aff_p * ds_aff
@@ -150,7 +162,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     sigma = (mu_aff / mu) ** 3.0 if mu > mp.zero else 0
     r_s_center = eval_r_s(s, z, sigma * mu)
     r_s_center_corr = elementwise_product(dz_aff, ds_aff) + r_s_center
-    dx, ds, dy, dz = compute_search_direction(s, z, L, ipiv, r_grad, r_eq, r_ineq, r_s_center_corr)
+    dx, ds, dy, dz = compute_search_direction(s, z, L, ipiv, r_grad, r_y, r_z, r_s_center_corr)
     alpha_p = get_max_step(s, ds)
     alpha_d = get_max_step(z, dz)
 
@@ -162,11 +174,17 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     z += fraction_to_boundary * alpha_d * dz
 
   # Return the solution and objective value
-  f, r_grad, r_eq, r_ineq, r_s = eval_func(x, s, y, z, 0)
-  res, gap = get_residual_and_gap(s, z, r_grad, r_eq, r_ineq)
+  f, r_grad, r_y, r_z, r_s = eval_func(x, s, y, z, 0)
+  res, gap = get_residual_and_gap(s, z, r_grad, r_y, r_z)
   return x, f, res, gap, iteration
 
 # Helper functions for linear algebra operations
+
+def diag(x, matrix):
+  M = matrix(len(x), len(x))
+  for i, xi in enumerate(x):
+    M[i, i] = xi
+  return M
 
 def elementwise_product(x, y):
   r = x.copy()

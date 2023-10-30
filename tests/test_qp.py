@@ -65,15 +65,17 @@ class TestQP(unittest.TestCase):
     A_eq[0, 1] = 1 # x[0] - 2 x[1] = 0
     A_eq[0, 2] = -2
     tol = mp.mpf('1e-20')
+    augmented = False
+
     tic = time.time()
-    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol)
+    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol, augmented=augmented)
     toc = time.time() - tic
     self.assertTrue(abs(res) < tol)
     self.assertTrue(abs(gap) < tol)
     print('Time mp: ' + str(toc))
 
     tic = time.time()
-    x2, f2, res2, gap2, iteration2 = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix.matrix, tol)
+    x2, f2, res2, gap2, iteration2 = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix.matrix, tol, augmented=augmented)
     toc2 = time.time() - tic
     self.assertTrue(abs(res2) < tol)
     self.assertTrue(abs(gap2) < tol)
