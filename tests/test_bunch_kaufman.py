@@ -48,7 +48,6 @@ class TestBunchKaufman(unittest.TestCase):
     for i in range(len(x_mp)):
       self.assertTrue(abs(x_mp[i] - x_sp[i]) < 1e-15, "Expected %s to equal %s for i=%s" % (x_mp[i], x_sp[i], i))
 
-
   @parameterized.expand([False, True])
   def test_bunch_kaufman(self, use_mp):
     print("Running test with use_mp=%s" % use_mp)

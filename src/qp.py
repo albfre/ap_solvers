@@ -1,7 +1,7 @@
 from mpmath import mp
 from src import bunch_kaufman
 
-def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100, augmented=True):
+def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100):
   """ minimize 0.5 x' H x + c' x
       st    Aeq x = beq
             Aineq x >= bineq
@@ -53,61 +53,37 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
 
     return f, r_grad, r_y, r_z, r_s
 
-  if augmented:
-    # Construct the augmented system
-    """ [ H       Aeq'   Aineq' ]
-        [ Aeq      0      0     ]
-        [ Aineq    0   -Z^-1 S  ]
-    """
-    m = n + m_eq + m_ineq
-    PDS = matrix(m, m)
-    set_submatrix(PDS, H, 0, 0)
-    set_submatrix(PDS, A_eq_T, 0, n)
-    set_submatrix(PDS, A_ineq_T, 0, n + m_eq)
-    set_submatrix(PDS, A_eq, n, 0)
-    set_submatrix(PDS, A_ineq, n + m_eq, 0)
-  else:
-    # Construct the system after another reduction
-    """ [ H + Aineq' Z S^-1 Aineq  Aeq' ]
-        [ Aeq      0 ]
-    """
-    m = n + m_eq
-    PDS = matrix(m, m)
-    set_submatrix(PDS, A_eq_T, 0, n)
-    set_submatrix(PDS, A_eq, n, 0)
+  # Construct the augmented system
+  """ [ H       Aeq'   Aineq' ]
+      [ Aeq      0      0     ]
+      [ Aineq    0   -Z^-1 S  ]
+  """
+  m = n + m_eq + m_ineq
+  PDS = matrix(m, m)
+  set_submatrix(PDS, H, 0, 0)
+  set_submatrix(PDS, A_eq_T, 0, n)
+  set_submatrix(PDS, A_ineq_T, 0, n + m_eq)
+  set_submatrix(PDS, A_eq, n, 0)
+  set_submatrix(PDS, A_ineq, n + m_eq, 0)
 
   def update_matrix(s, z):
-    if augmented:
-      ZinvS = elementwise_division(s, z)
-      set_subdiagonal(PDS, -ZinvS, n + m_eq, n + m_eq)
-    else:
-      SinvZ = diag(elementwise_division(z, s), matrix) 
-      H_part = H + A_ineq_T * SinvZ * A_ineq
-      set_submatrix(PDS, H_part, 0, 0)
+    ZinvS = elementwise_division(s, z)
+    set_subdiagonal(PDS, -ZinvS, n + m_eq, n + m_eq)
 
   # Define the function for computing the search direction
   def compute_search_direction(s, z, L, ipiv, r_grad, r_y, r_z, r_s):
     r_zMinusZinvr_s = r_z + elementwise_division(r_s, z) # Aineq x - s - bineq + Z^-1 (SZe - mue)
 
     # Solve the PDS
-    if augmented:
-      rhs = -matrix(r_grad.tolist() + r_y.tolist() + r_zMinusZinvr_s.tolist())
-    else:
-      SinvZ = elementwise_division(z, s)
-      r_x = r_grad + A_ineq_T * elementwise_product(SinvZ, r_zMinusZinvr_s)
-      rhs = -matrix(r_x.tolist() + r_y.tolist())
+    rhs = -matrix(r_grad.tolist() + r_y.tolist() + r_zMinusZinvr_s.tolist())
 
     d = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, rhs)
 
     # Extract the search direction components
-    d= d.tolist()
+    d = d.tolist()
     dx = matrix(d[:n])
     dy = matrix(d[n:n + m_eq])
-
-    if augmented:
-      dz = -matrix(d[n + m_eq:n + m_eq + m_ineq])
-    else:
-      dz = -elementwise_product(SinvZ, A_ineq * dx + r_z + elementwise_division(r_s, z))
+    dz = -matrix(d[n + m_eq:n + m_eq + m_ineq])
     ds = -elementwise_division(r_s + elementwise_product(s, dz), z) # -Z^-1 (rS + S dz)
 
     return dx, ds, dy, dz

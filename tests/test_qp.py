@@ -13,44 +13,29 @@ class TestQP(unittest.TestCase):
   def test_small_qp(self):
     mp.dps = 100
     n = 2
-    Q = mp.matrix(n, n)
-    c = mp.matrix(n, 1)
     t0 = 1300
     t1 = 50
     a00 = 809
     a01 = 359
-    a10 = 25
-    a11 = 77
+    Q = mp.matrix([[a00 ** 2, a00 * a01], [a00 * a01, a01 **2]]) / t0 ** 2
+    c = -mp.matrix([a00, a01]) / t0
 
     # e' x = 1
     A_eq = mp.ones(1, n)
     b_eq = mp.ones(1, 1)
 
     # x >= 0
-    A_ineq = mp.matrix(n, n)
-    for i in range(n):
-      A_ineq[i, i ] = mp.mpf('1')
-
+    A_ineq = mp.diag([1, 1])
     b_ineq = mp.matrix(n, 1)
-
-    k = 0
-    Q[0, 0] = (a00**2) / t0**2 + k
-    Q[1, 1] = (a01**2) / t0**2 + k
-    Q[0, 1] = (a00 * a01) / t0**2
-    Q[1, 0] = (a00 * a01) / t0**2
-    c[0] = -t0 * a00 / t0**2
-    c[1] = -t0 * a01 / t0**2
 
     tol = mp.mpf('1e-20')
     x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol)
     self.assertTrue(abs(res) < tol)
     self.assertTrue(abs(gap) < tol)
 
-  @parameterized.expand([False, True])
-  def test_larger_qp(self, augmented):
-    print("Running test with augmented=%s" % augmented)
+  def test_larger_qp(self):
     mp.dps = 100
-    n = 10
+    n = 100
     Q = mp.matrix(n, n)
     c = mp.matrix(n, 1)
     A_ineq = mp.matrix(n, n)
@@ -71,14 +56,14 @@ class TestQP(unittest.TestCase):
     tol = mp.mpf('1e-20')
 
     tic = time.time()
-    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol, augmented=augmented)
+    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol)
     toc = time.time() - tic
     self.assertTrue(abs(res) < tol)
     self.assertTrue(abs(gap) < tol)
     print('Time mp: ' + str(toc))
 
     tic = time.time()
-    x2, f2, res2, gap2, iteration2 = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix.matrix, tol, augmented=augmented)
+    x2, f2, res2, gap2, iteration2 = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix.matrix, tol)
     toc2 = time.time() - tic
     self.assertTrue(abs(res2) < tol)
     self.assertTrue(abs(gap2) < tol)
