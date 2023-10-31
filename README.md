@@ -2,7 +2,7 @@
 
 Arbitrary precision solvers using mpmath. It provides the following solvers:
 
-#Bunch-Kaufman solver
+## Bunch-Kaufman solver
 
 The Bunch-Kaufman solver is a matrix factorization solver for symmetric indefinite matrices.
 
