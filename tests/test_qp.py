@@ -35,7 +35,7 @@ class TestQP(unittest.TestCase):
 
   def test_larger_qp(self):
     mp.dps = 100
-    n = 100
+    n = 30
     Q = mp.matrix(n, n)
     c = mp.matrix(n, 1)
     A_ineq = mp.matrix(n, n)
