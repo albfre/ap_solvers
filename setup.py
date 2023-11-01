@@ -18,6 +18,6 @@ setup(
   packages=find_packages(include=['ap_solvers', 'ap_solvers.*']),
   test_suite='tests',
   tests_require=test_requirements,
-  url='https://github.com/albfre/mpmath-solvers',
+  url='https://github.com/albfre/ap_solvers',
   version='0.1.0'
 )
