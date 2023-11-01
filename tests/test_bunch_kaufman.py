@@ -57,7 +57,7 @@ class TestBunchKaufman(unittest.TestCase):
 
     # Compute result using bunch_kaufman implementation
     tic = time.time()
-    L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(mp.matrix(A))
+    L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(matrix(A))
     x_mp = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, matrix(b))
     toc = time.time() - tic
     print("Time: " + str(toc))
