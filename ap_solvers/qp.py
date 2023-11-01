@@ -1,7 +1,8 @@
-from mpmath import mp
 from ap_solvers import bunch_kaufman
+from ap_solvers import dense_mp_matrix
+from mpmath import mp
 
-def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100):
+def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, atrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100):
   """ minimize 0.5 x' H x + c' x
       st    Aeq x = beq
             Aineq x >= bineq

@@ -29,7 +29,7 @@ class TestQP(unittest.TestCase):
     b_ineq = mp.matrix(n, 1)
 
     tol = mp.mpf('1e-20')
-    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol)
+    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix)
     self.assertTrue(abs(res) < tol)
     self.assertTrue(abs(gap) < tol)
 
