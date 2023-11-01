@@ -13,6 +13,8 @@ Usage:
 from ap_solvers import bunch_kaufman
 from mpmath import mp
 
+mp.dps = 50 # Set decimal precision
+
 A = mp.matrix([[4, 2, -2], [2, 5, 6], [-2, 6, 5]])
 b = mp.matrix([1, 2, 3])
 
@@ -32,6 +34,8 @@ Usage:
 
 from ap_solvers import qp, dense_mp_matrix
 from mpmath import mp
+
+mp.dps = 50 # Set decimal precision
 
 Q = dense_mp_matrix.matrix([[809 ** 2, 809 * 359], [809 * 359, 359 **2]]) / 1300 ** 2
 c = -dense_mp_matrix.matrix([809, 359]) / 1300
