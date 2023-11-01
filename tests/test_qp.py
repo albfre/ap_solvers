@@ -1,13 +1,13 @@
-from src import qp
-from src import dense_mp_matrix
+from ap_solvers import qp
+from ap_solvers import dense_mp_matrix
+
+from mpmath import mp
+import scipy
+import numpy as np
+import time
 
 import unittest
 from parameterized import parameterized
-
-import scipy
-import numpy as np
-from mpmath import mp
-import time
 
 class TestQP(unittest.TestCase):
   def test_small_qp(self):

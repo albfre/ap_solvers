@@ -1,12 +1,13 @@
-from src import bunch_kaufman
-from src import dense_mp_matrix
+from ap_solvers import bunch_kaufman
+from ap_solvers import dense_mp_matrix
+
+from mpmath import mp
+import scipy
+import numpy as np
+import time
 
 import unittest
 from parameterized import parameterized
-import scipy
-import numpy as np
-from mpmath import mp
-import time
 
 class TestBunchKaufman(unittest.TestCase):
   def setup_factorization_test(self):

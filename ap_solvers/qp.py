@@ -1,5 +1,5 @@
 from mpmath import mp
-from src import bunch_kaufman
+from ap_solvers import bunch_kaufman
 
 def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100):
   """ minimize 0.5 x' H x + c' x
