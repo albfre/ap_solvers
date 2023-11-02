@@ -65,8 +65,7 @@ class ConvexHull:
     for i, si in enumerate(initial_indices):
       point_i = self.points[si]
       for sj in initial_indices[i + 1:]:
-        point_j = points[sj]
-        distance = sum((x - y)**2 for x, y in zip(point_i, point_j))
+        distance = sum((x - y)**2 for x, y in zip(point_i, self.points[sj]))
         distances.append([distance, (si, sj)])
     distances = sorted(distances)
 
@@ -118,7 +117,116 @@ class ConvexHull:
     self.initialize_outside_set(facets)
 
     # Create a list of all facets that have outside points
-    facets_with_outside_points = [facet for facet in facets if len(facet.outside_indices) > 0]
+    facets_with_outside_points = sorted([facet for facet in facets if len(facet.outside_indices) > 0], key=lambda x: x.farthest_outside_point_distance)
+
+    visible_facets = []
+    while len(facets_with_outside_points) > 0:
+      facet = facets_with_outside_points.pop()
+      if len(facet.outside_indices) == 0 or facet.visible:
+        continue
+
+      # From the outside set of the current facet, find the farthest point
+      apex_index = facet.outside_indices.pop(facet.farthest_outside_point_index)
+
+      # Find the set of facets that are visible from the point to be added
+      new_visible_facets_start_index = len(visible_facets)
+
+      # horizon is the visible-invisible neighboring facet paris
+      horizon = self.get_horizon_and_append_visible_facets(points[apexIndex], facet, visible_facets, horizon)
+
+      # Get the outside points from the visible facets
+      unassigned_point_indices = [facet.outside_indices for facet in visible_facets[new_visible_facets_start_index:]]
+
+      # Create new facets from the apex
+      new_facets = create_new_facets(apex_index, horizon, facets, visible_facets);
+
+  def create_new_facets(self, apex_index, horizon, facets, visible_facets):
+    new_facets = []
+
+    # Construct new facets
+    self.prepare_new_facets(apex_index, horizon, facets, visible_facets, new_facets)
+
+    self.connect_neighbors(apex_index, horizon, facets, visible_facets, new_facets)
+
+    assert(all(len(facet.neighbors) == self.dimension for facet in new_facets))
+
+  def prepare_new_facets(self, apex_index, horizon, facets, visible_facets, new_facets):
+
+    for hi, (visible_facet, obscured_facet) in enumerate(horizon):
+      assert(visible_facet.visible)
+      assert(not obscured_facet.visible)
+
+      # The new facet has the joint vertices of its parent, plus the index of the apex
+      assert(apex_index not in visible_facet.vertex_indices)
+      assert(apex_index not in obscured_facet.vertex_indices)
+      vertex_indices = sorted(list(set(visible_facet.vertex_indices + obscured_facet.vertex_indices + [apex_index])))
+      assert(len(vertex_indices) == self.dimension)
+      new_faces.append(Facet(vertex_indices, self.points))
+
+    # Reuse space of visible facets, which are to be removed
+    ni = 0
+    for i, facet in enumerate(facets):
+      if facet.visible:
+        facets[i] = new_facet[ni]
+        ni += 1
+
+    for new_facet in new_facets[ni:]
+      facets.append(new_facet)
+
+    # Connect new facets to their neighbors
+    for (visible_facet, obscured_facet), new_facet in zip(horizon, new_facets):
+      # The new facet is neighbor to its obscured parent, and vice versa
+      i = obscured_facet.neighbors.index(visible_facet)
+      assert(i >= 0)
+      obscured_facet.neighbors[i] = new_facet
+      obscured_facet.visit_index = -1
+      new_facet.neighbors.append(obscured_facet)
+
+  def connect_neighbors(self, apex_index, horizon, facets, visible_facets, new_facets):
+    num_of_peaks = len(horizon) * (self.dimension - 1)
+    peaks = [[] for _ in range(num_of_peaks)]
+    peak_hashes = []
+    peak_index = 0
+
+    for new_facet in new_facets:
+      for i in new_facet.vertex_indices:
+        if i != apex_index:
+          peaks[peak_index] = [j for j in new_facet.vertex_indices if j != i and j != apex_index]
+
+          # The vertexIndices are already sorted, so no need to sort them here.
+          # If the algorithm is changed to use non-sorted vertices, add the following line:
+          # peaks[peak_index] = sorted(peak)
+          hash_val = get_hash_value(peak)
+          peak_hashes.append((hash_val, (new_facet, peak)))
+          peak_index += 1
+    peak_hashes.sort()
+
+    # Update neighbors
+    for (hash1, (facet1, peak1)), (hash2, (facet2, peak2)) in zip(peak_hashes, peak_hashes[1:]):
+      assert(hash1 == hash2)
+      assert(peak1 == peak2)
+      facet1.neighbors_append(facet2)
+      facet2.neighbors_append(facet1)
+
+  def get_horizon_and_append_visible_facets(self, apex, facet, visible_facets):
+    horizon = []
+    facet.visible = True
+    facet.visit_index = 0
+    start_index = len(visible_facets)
+    visible_facets.append(facet)
+    vi = start_index
+    while vi < len(visible_facets):
+      visible_facet = visible_facets[vi]
+      for neighbor in visible_facet.neighbors:
+        if neighbor.visit_index != 0 and is_facet_visible_from_point(neighbor, apex):
+          visible_facets.append(neighbor)
+          neighbor.visible = True
+
+        if not neighbor.visible:
+          horizon.append((visible_facet, neighbor))
+        neighbor.visit_index = 0
+    return horizon
+
 
   def update_facet_normal_and_offset(self, origin, facets, A):
     assert(A.rows == self.dimension)
