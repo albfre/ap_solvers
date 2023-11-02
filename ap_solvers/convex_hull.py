@@ -109,7 +109,7 @@ class ConvexHull:
 
     # Compute inwards-oriented facet normals
     A = dense_mp_matrix.matrix(dimension, dimension)
-    self.update_facet_normal_and_offset(origin, facets, A);
+    self.update_facet_normal_and_offset(origin, facets, A)
     
     if any(self.is_facet_visible_from_point(facet, neighbor.center) for neighbor in facet.neighbors for facet in facets):
       raise TypeError("Not a convex polytope")
@@ -138,7 +138,13 @@ class ConvexHull:
       unassigned_point_indices = [facet.outside_indices for facet in visible_facets[new_visible_facets_start_index:]]
 
       # Create new facets from the apex
-      new_facets = create_new_facets(apex_index, horizon, facets, visible_facets);
+      new_facets = self.create_new_facets(apex_index, horizon, facets, visible_facets)
+
+      self.update_facet_normal_and_offset(origin, new_facets, A)
+
+      # Assign the points belonging to visible facets to the newly created facets
+      self.update_outside_sets(points, unassigned_point_indices, newFacets)
+
 
   def create_new_facets(self, apex_index, horizon, facets, visible_facets):
     new_facets = []
@@ -227,6 +233,50 @@ class ConvexHull:
         neighbor.visit_index = 0
     return horizon
 
+  def update_outside_sets(self, visible_facet_outside_indices, new_facets):
+    for outside_indices in visible_facet_outside_indices:
+      facet_of_previous_point = None
+
+      for pi, point_index in enumerate(outside_indices):
+        point = self.points[point_index]
+        if facet_of_previous_point != None:
+          best_distance = self.distance(facet_of_previous_point, point)
+          if best_distance > mp.zero:
+            facet_of_previous_point = self.assign_point_to_farthest_facet(facet_of_previous_point, best_distance, point_index, point, pi)
+            continue
+
+        # If the point was not outside the predicted facets, we have to search through all facets
+        for facet in new_facets:
+          if facet_of_previous_point == new_facet:
+            continue
+          best_distance = self.distance(new_facet, point)
+          if bestDistance > mp.zero:
+            facet_of_previous_point = self.assign_point_to_farthest_facet(new_facet, best_distance, point_index, point, pi)
+            break
+
+  def assign_point_to_farthest_facet(self, facet, best_distance, point_index, point, visit_index):
+    # Found a facet for which the point is an outside point
+    # Recursively check whether its neighbors are even farther
+    facet.visit_index = visit_index
+    check_neighbors = True
+    while checkNeighbors:
+      check_neighbors = False
+      for neighbor in facet.neighbors:
+        if not neighbor.is_new_facet or neighbor.visit_index == visit_index:
+          continue
+        neighbor.visit_index = visit_index
+        distance = self.distance(neighbor, point)
+        if distance > best_distance:
+          best_distance = distance
+          facet = neighbor
+          checkNeighbors = True
+          break
+
+    if best_distance > facet.farthest_outside_point_distance
+      facet.farthest_outside_point_distance = best_distance
+      facet.farthest_outside_point_index = len(facet.outside_indices)
+    facet.outside_indices.append(pointIndex)
+    return facet
 
   def update_facet_normal_and_offset(self, origin, facets, A):
     assert(A.rows == self.dimension)
@@ -252,7 +302,7 @@ class ConvexHull:
       # Orient normal inwards
       if is_facet_visible_from_point(facet, origin):
         facet.normal = [-n for n in facet.normal]
-        facet.offset = -facet.offset;
+        facet.offset = -facet.offset
 
   def initialize_outside_set(self, facets):
     check_point = [True] * len(self.points)
@@ -281,7 +331,7 @@ class ConvexHull:
 
   def is_facet_visible_from_point(facet, point):
     # Returns true if the point is contained in the open negative halfspace of the facet
-    return self.scalar_product(facet.normal, point) < facet.offset;
+    return self.scalar_product(facet.normal, point) < facet.offset
 
   def distance(facet, point):
-    return facet.offset - scalar_product(facet.normal, point);
+    return facet.offset - scalar_product(facet.normal, point)
