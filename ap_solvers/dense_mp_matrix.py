@@ -149,3 +149,6 @@ class matrix:
 
   def copy(self):
     return matrix(self.__data)
+
+  def swap_row(self, i, j):
+    [self.__data[i], self.__data[j]] = [self.__data[j], self.__data[i]]
