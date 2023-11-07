@@ -1,5 +1,6 @@
 from ap_solvers import dense_mp_matrix
 from mpmath import mp
+import random
 
 class Facet:
   def __init__(self, vertex_indices, points):
@@ -22,11 +23,17 @@ class ConvexHull:
     if not points:
       raise ValueError("Points must not be empty")
     self.original_points = [tuple(mp.mpf(x) for x in p) for p in points]
-    self.points = list(set(self.original_points))
+    self.unperturbed_points = list(set(self.original_points))
+    self.points = self.unperturbed_points
     num_points = len(points)
     self.dimension = len(points[0])
     self.distance_tests = 0
     self.hyper_planes = 0
+
+    self.max_perturbation_iter = 5
+    self.perturbation_iter = 0
+    self.shortest_distance = mp.zero
+    random.seed(17)
 
     if num_points <= self.dimension:
       raise TypeError("Too few points (%s) to compute hull in dimension %s" % (num_points, self.dimension))
@@ -38,13 +45,32 @@ class ConvexHull:
 
   def compute(self):
     self.facets = self.initial_simplex()
-    self.grow_convex_hull()
+    try:
+      self.grow_convex_hull()
+    except Exception as e:
+      print("An exception occurred:", str(e))
+      if self.perturbation_iter == 0:
+        self.shortest_distance = min(self.point_distance(p1, p2)
+            for i, p1 in enumerate(self.unperturbed_points)
+            for j, p2 in enumerate(self.unperturbed_points)
+            if i < j)
+      self.perturbation_iter += 1
+      if self.perturbation_iter > self.max_perturbation_iter:
+        raise ValueError("Unable to compute convex hull")
+      if 0.5 * self.shortest_distance > mp.dps:
+        raise ValueError("Shortest distance between points is too small in comparison with mp.dps")
+      factor = next(x for x in range(20, -1, -1) if x * self.max_perturbation_iter < mp.dps)
+      perturbation = 0.5 * self.shortest_distance * 10 ** -(factor * (self.max_perturbation_iter - self.perturbation_iter))
+      print("Perturbing with size: %s" % perturbation)
+      self.points = [tuple([coord + random.uniform(-perturbation, perturbation) for coord in p]) for p in self.unperturbed_points]
+      return self.compute()
+
     vertex_indices = []
     for facet in self.facets:
       vertex_indices.append(facet.vertex_indices)
       vis = vertex_indices[-1]
       for i in range(self.dimension):
-        vis[i] = self.original_points.index(self.points[vis[i]])
+        vis[i] = self.original_points.index(self.unperturbed_points[vis[i]])
 
     return vertex_indices
 
@@ -116,8 +142,7 @@ class ConvexHull:
     A = dense_mp_matrix.matrix(self.dimension, self.dimension)
     self.update_facet_normal_and_offset(origin, facets, A)
     
-    if any(self.is_facet_visible_from_point(facet, neighbor.center) for neighbor in facet.neighbors for facet in facets):
-      raise TypeError("Not a convex polytope")
+    self.throw_if_not_convex_polytope(facets)
 
     self.initialize_outside_set(facets)
 
@@ -163,9 +188,7 @@ class ConvexHull:
 
     facets = [facet for facet in facets if not facet.visible]
 
-    if any(self.is_facet_visible_from_point(facet, neighbor.center) for neighbor in facet.neighbors for facet in facets):
-      raise TypeError("Not a convex polytope")
-
+    self.throw_if_not_convex_polytope(facets)
 
   def create_new_facets(self, apex_index, horizon, facets, visible_facets):
 
@@ -431,5 +454,12 @@ class ConvexHull:
     # Returns true if the point is contained in the open negative halfspace of the facet
     return self.scalar_product(facet.normal, point) < facet.offset
 
+  def point_distance(self, p1, p2):
+    return mp.sqrt(sum((x - y) ** 2 for x, y in zip(p1, p2)))
+
   def distance(self, facet, point):
     return facet.offset - self.scalar_product(facet.normal, point)
+
+  def throw_if_not_convex_polytope(self, facets):
+    if any(self.is_facet_visible_from_point(facet, neighbor.center) for facet in facets for neighbor in facet.neighbors):
+      raise TypeError("Not a convex polytope")

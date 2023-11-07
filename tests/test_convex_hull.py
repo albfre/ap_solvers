@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 class TestConvexHull(unittest.TestCase):
   def test_convex_hull(self):
+    mp.dps = 100
     points = [[0, 0, 0],
               [0, 0, 1], 
               [0, 1, 0], 
@@ -21,12 +22,13 @@ class TestConvexHull(unittest.TestCase):
               [1, 1, 0], 
               [1, 1, 1]]
 
-    points = [[0,0],
-              [0,1],
-              [1,0],
-              [0.9, 0.9]]
+
+    #points = [[0,0],
+    #          [0,1],
+    #          [1,0],
+    #          [0.9, 0.9]]
     random.seed(17)
-    magnitude = 1e-7
+    magnitude = 0
 
     for p in points:
       for i in range(len(p)):
