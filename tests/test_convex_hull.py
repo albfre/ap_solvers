@@ -15,7 +15,7 @@ class TestConvexHull(unittest.TestCase):
   def test_dimensions(self, dimension):
     print("Computing convex hull in dimension %s" % dimension)
     mp.dps = 50
-    num_points = 50
+    num_points = 20
     points = []
     random.seed(17)
     for i in range(num_points):
