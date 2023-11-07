@@ -247,17 +247,12 @@ class ConvexHull:
     for new_facet in new_facets:
       for i in new_facet.vertex_indices:
         if i != apex_index:
-          peak = peaks[peak_index]
-          for j in new_facet.vertex_indices:
-            if i != j and j != apex_index:
-              peak.append(j)
-
-          #peaks[peak_index] = [j for j in new_facet.vertex_indices if j != i and j != apex_index]
+          peaks[peak_index] = [j for j in new_facet.vertex_indices if j != i and j != apex_index]
 
           # The vertexIndices are already sorted, so no need to sort them here.
           # If the algorithm is changed to use non-sorted vertices, add the following line:
           # peaks[peak_index] = sorted(peak)
-          #peak = peaks[peak_index]
+          peak = peaks[peak_index]
           hash_val = self.get_hash_value(peak)
           peak_hashes.append((hash_val, (new_facet, peak)))
           peak_index += 1
