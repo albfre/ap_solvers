@@ -251,12 +251,12 @@ class ConvexHull:
           # peaks[peak_index] = sorted(peak)
           peak = peaks[peak_index]
           hash_val = self.get_hash_value(peak)
-          peak_hashes.append((hash_val, (new_facet, peak)))
+          peak_hashes.append((hash_val, peak, new_facet))
           peak_index += 1
-    peak_hashes.sort(key = lambda x: (x[0], x[1][1]))
+    peak_hashes.sort(key = lambda x: (x[0], x[1]))
 
     # Update neighbors
-    for (hash1, (facet1, peak1)), (hash2, (facet2, peak2)) in zip(peak_hashes[::2], peak_hashes[1::2]):
+    for (hash1, peak1, facet1), (hash2, peak2, facet2) in zip(peak_hashes[::2], peak_hashes[1::2]):
       assert(hash1 == hash2)
       assert(peak1 == peak2)
       facet1.neighbors.append(facet2)
