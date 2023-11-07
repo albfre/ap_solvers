@@ -43,7 +43,7 @@ class ConvexHull:
     for facet in self.facets:
       vertex_indices.append(facet.vertex_indices)
       vis = vertex_indices[-1]
-      for i in range(dimension):
+      for i in range(self.dimension):
         vis[i] = self.original_points.index(self.points[vis[i]])
 
     return vertex_indices
@@ -148,7 +148,7 @@ class ConvexHull:
       self.update_facet_normal_and_offset(origin, new_facets, A)
 
       # Assign the points belonging to visible facets to the newly created facets
-      self.update_outside_sets(points, unassigned_point_indices, new_facets)
+      self.update_outside_sets(unassigned_point_indices, new_facets)
 
       # Add the new facets with outside points to the vector of all facets with outside points
       for facet in new_facets:
@@ -168,16 +168,17 @@ class ConvexHull:
 
 
   def create_new_facets(self, apex_index, horizon, facets, visible_facets):
-    new_facets = []
 
     # Construct new facets
-    self.prepare_new_facets(apex_index, horizon, facets, visible_facets, new_facets)
+    new_facets = self.prepare_new_facets(apex_index, horizon, facets, visible_facets)
 
     self.connect_neighbors(apex_index, horizon, facets, visible_facets, new_facets)
 
     assert(all(len(facet.neighbors) == self.dimension for facet in new_facets))
+    return new_facets
 
-  def prepare_new_facets(self, apex_index, horizon, facets, visible_facets, new_facets):
+  def prepare_new_facets(self, apex_index, horizon, facets, visible_facets):
+    new_facets = []
 
     for hi, (visible_facet, obscured_facet) in enumerate(horizon):
       assert(visible_facet.visible)
@@ -186,8 +187,8 @@ class ConvexHull:
       # The new facet has the joint vertices of its parent, plus the index of the apex
       assert(apex_index not in visible_facet.vertex_indices)
       assert(apex_index not in obscured_facet.vertex_indices)
-      vertex_indices = sorted(list(set(visible_facet.vertex_indices + obscured_facet.vertex_indices + [apex_index])))
-      assert(len(vertex_indices) == self.dimension, "Vertex: %s, dimension: %s" % (len(vertex_indices), self.dimension))
+      vertex_indices = sorted(list(set(visible_facet.vertex_indices) & set(obscured_facet.vertex_indices)) + [apex_index])
+      assert len(vertex_indices) == self.dimension, "Vertex: %s, dimension: %s" % (len(vertex_indices), self.dimension)
       new_facets.append(Facet(vertex_indices, self.points))
 
     # Reuse space of visible facets, which are to be removed
@@ -211,7 +212,10 @@ class ConvexHull:
       obscured_facet.visit_index = -1
       new_facet.neighbors.append(obscured_facet)
 
+    return new_facets
+
   def connect_neighbors(self, apex_index, horizon, facets, visible_facets, new_facets):
+    assert(len(new_facets) == len(horizon))
     num_of_peaks = len(horizon) * (self.dimension - 1)
     peaks = [[] for _ in range(num_of_peaks)]
     peak_hashes = []
@@ -220,23 +224,28 @@ class ConvexHull:
     for new_facet in new_facets:
       for i in new_facet.vertex_indices:
         if i != apex_index:
-          peaks[peak_index] = [j for j in new_facet.vertex_indices if j != i and j != apex_index]
+          peak = peaks[peak_index]
+          for j in new_facet.vertex_indices:
+            if i != j and j != apex_index:
+              peak.append(j)
+
+          #peaks[peak_index] = [j for j in new_facet.vertex_indices if j != i and j != apex_index]
 
           # The vertexIndices are already sorted, so no need to sort them here.
           # If the algorithm is changed to use non-sorted vertices, add the following line:
           # peaks[peak_index] = sorted(peak)
-          peak = peaks[peak_index]
+          #peak = peaks[peak_index]
           hash_val = self.get_hash_value(peak)
           peak_hashes.append((hash_val, (new_facet, peak)))
           peak_index += 1
-    peak_hashes.sort()
+    peak_hashes.sort(key = lambda x: (x[0], x[1][1]))
 
     # Update neighbors
-    for (hash1, (facet1, peak1)), (hash2, (facet2, peak2)) in zip(peak_hashes, peak_hashes[1:]):
+    for (hash1, (facet1, peak1)), (hash2, (facet2, peak2)) in zip(peak_hashes[::2], peak_hashes[1::2]):
       assert(hash1 == hash2)
       assert(peak1 == peak2)
-      facet1.neighbors_append(facet2)
-      facet2.neighbors_append(facet1)
+      facet1.neighbors.append(facet2)
+      facet2.neighbors.append(facet1)
 
   def get_hash_value(self, v):
     h = 0
@@ -284,7 +293,7 @@ class ConvexHull:
           if facet_of_previous_point == new_facet:
             continue
           best_distance = self.distance(new_facet, point)
-          if bestDistance > mp.zero:
+          if best_distance > mp.zero:
             facet_of_previous_point = self.assign_point_to_farthest_facet(new_facet, best_distance, point_index, point, pi)
             break
 
