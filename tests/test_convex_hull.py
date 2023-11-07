@@ -22,21 +22,15 @@ class TestConvexHull(unittest.TestCase):
               [1, 1, 0], 
               [1, 1, 1]]
 
-
-    #points = [[0,0],
-    #          [0,1],
-    #          [1,0],
-    #          [0.9, 0.9]]
     random.seed(17)
     magnitude = 0
-
     for p in points:
       for i in range(len(p)):
         p[i] += random.uniform(-magnitude, magnitude)
     
     print(points)
 
-    # Compute result using bunch_kaufman implementation
+    # Compute the convex hull
     tic = time.time()
     ch = convex_hull.ConvexHull(points)
     toc = time.time() - tic

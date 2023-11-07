@@ -52,3 +52,31 @@ x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_
 
 print(str(f))
 ```
+
+## Convex hull solver
+
+A convex hull solver based on the quickhull algorithm to compute convex hulls in arbitrary dimensions.
+
+Usage:
+```python
+# Example code for using the convex hull solver
+
+from ap_solvers import convex_hull
+from mpmath import mp
+
+mp.dps = 50 # Set decimal precision
+
+# A cube
+points = [[0, 0, 0],
+          [0, 0, 1], 
+          [0, 1, 0], 
+          [0, 1, 1], 
+          [1, 0, 0], 
+          [1, 0, 1], 
+          [1, 1, 0], 
+          [1, 1, 1]]
+
+# Compute the convex hull
+ch = convex_hull.ConvexHull(points)
+print(ch.vertices)
+```
