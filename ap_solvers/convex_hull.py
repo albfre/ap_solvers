@@ -27,6 +27,7 @@ class ConvexHull:
     self.points = self.unperturbed_points
     num_points = len(points)
     self.dimension = len(points[0])
+    self.powers_of_twelve = list(reversed([i ** 12 for i in range(1, self.dimension - 1)]))
     self.distance_tests = 0
     self.hyper_planes = 0
 
@@ -262,13 +263,8 @@ class ConvexHull:
       facet2.neighbors.append(facet1)
 
   def get_hash_value(self, v):
-    h = 0
-    for i in range(len(v)):
-      i2 = i * i
-      i4 = i2 * i2
-      i8 = i4 * i4
-      h += v[i] * i8 * i4
-    return h
+    assert(len(self.powers_of_twelve) == len(v))
+    return sum(vi * power for vi, power in zip(v, self.powers_of_twelve))
 
   def get_horizon_and_append_visible_facets(self, apex, facet, visible_facets):
     horizon = []
