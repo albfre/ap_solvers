@@ -191,12 +191,8 @@ class ConvexHull:
     self.throw_if_not_convex_polytope(facets)
 
   def create_new_facets(self, apex_index, horizon, facets, visible_facets):
-
-    # Construct new facets
     new_facets = self.prepare_new_facets(apex_index, horizon, facets, visible_facets)
-
     self.connect_neighbors(apex_index, horizon, facets, visible_facets, new_facets)
-
     assert(all(len(facet.neighbors) == self.dimension for facet in new_facets))
     return new_facets
 
