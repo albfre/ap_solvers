@@ -55,7 +55,7 @@ print(str(f))
 
 ## Convex hull solver
 
-A convex hull solver based on the quickhull algorithm to compute convex hulls in arbitrary dimensions.
+The convex hull solver is based on the quickhull algorithm. It can compute convex hulls in arbitrary dimensions.
 
 Usage:
 ```python
