@@ -2,8 +2,6 @@ from ap_solvers import convex_hull
 from ap_solvers import dense_mp_matrix
 
 from mpmath import mp
-import scipy
-import numpy as np
 import time
 import random
 
@@ -18,13 +16,12 @@ class TestConvexHull(unittest.TestCase):
     num_points = 20
     points = []
     random.seed(17)
-    for i in range(num_points):
-      points.append([random.random() for _ in range(dimension)])
+    points = [[random.random() for _ in range(dimension)] for _ in range(num_points)]
     tic = time.time()
     ch = convex_hull.ConvexHull(points)
     toc = time.time() - tic
     print("Time: " + str(toc))
-    print(len(ch.vertices))
+    print("Num vertices: %s" % len(ch.vertices))
 
   def test_convex_hull(self):
     mp.dps = 100
@@ -36,7 +33,6 @@ class TestConvexHull(unittest.TestCase):
               [1, 0, 1], 
               [1, 1, 0], 
               [1, 1, 1]]
-    #points = [[-1],[0.5], [1]]
 
     random.seed(17)
     magnitude = 0
