@@ -30,6 +30,7 @@ class ConvexHull:
     self.powers_of_twelve = list(reversed([i ** 12 for i in range(1, self.dimension - 1)]))
     self.distance_tests = 0
     self.hyper_planes = 0
+    self.A = dense_mp_matrix.matrix(self.dimension, self.dimension)
 
     self.max_perturbation_iter = 5
     self.perturbation_iter = 0
@@ -140,8 +141,7 @@ class ConvexHull:
     origin = [x / len(facets) for x in origin]
 
     # Compute inwards-oriented facet normals
-    A = dense_mp_matrix.matrix(self.dimension, self.dimension)
-    self.update_facet_normal_and_offset(origin, facets, A)
+    self.update_facet_normal_and_offset(origin, facets)
     
     self.throw_if_not_convex_polytope(facets)
 
@@ -171,7 +171,7 @@ class ConvexHull:
       # Create new facets from the apex
       new_facets = self.create_new_facets(apex_index, horizon, facets, visible_facets)
 
-      self.update_facet_normal_and_offset(origin, new_facets, A)
+      self.update_facet_normal_and_offset(origin, new_facets)
 
       # Assign the points belonging to visible facets to the newly created facets
       self.update_outside_sets(unassigned_point_indices, new_facets)
@@ -331,8 +331,9 @@ class ConvexHull:
     facet.outside_indices.append(point_index)
     return facet
 
-  def update_facet_normal_and_offset(self, origin, facets, A):
+  def update_facet_normal_and_offset(self, origin, facets):
     dimension = self.dimension
+    A = self.A
     assert(A.rows == self.dimension)
     assert(A.cols == self.dimension)
     for facet in facets:
