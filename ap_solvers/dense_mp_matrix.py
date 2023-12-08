@@ -94,8 +94,8 @@ class matrix:
         for j in range(other.cols):
           val = mp.zero
           for k in range(self.cols):
-            val += self[i, k] * other[k, j]
-          result[i, j] = val
+            val += self.__data[i][k] * other.__data[k][j]
+          result.__data[i][j] = val
       return result
     else:
       # scalar multiplication
@@ -152,3 +152,7 @@ class matrix:
 
   def swap_row(self, i, j):
     [self.__data[i], self.__data[j]] = [self.__data[j], self.__data[i]]
+
+  def data(self):
+    return self.__data
+

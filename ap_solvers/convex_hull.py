@@ -1,6 +1,8 @@
 from ap_solvers import dense_mp_matrix
 from mpmath import mp
 import random
+from itertools import starmap
+from operator import mul
 
 class Facet:
   def __init__(self, vertex_indices, points):
@@ -169,7 +171,9 @@ class ConvexHull:
       unassigned_point_indices = [facet.outside_indices for facet in visible_facets[new_visible_facets_start_index:]]
 
       # Create new facets from the apex
-      new_facets = self.create_new_facets(apex_index, horizon, facets, visible_facets)
+      new_facets = self.prepare_new_facets(apex_index, horizon, facets, visible_facets)
+      self.connect_neighbors(apex_index, horizon, facets, new_facets)
+      assert(all(len(facet.neighbors) == self.dimension for facet in new_facets))
 
       self.update_facet_normal_and_offset(origin, new_facets)
 
@@ -190,12 +194,6 @@ class ConvexHull:
     facets = [facet for facet in facets if not facet.visible]
 
     self.throw_if_not_convex_polytope(facets)
-
-  def create_new_facets(self, apex_index, horizon, facets, visible_facets):
-    new_facets = self.prepare_new_facets(apex_index, horizon, facets, visible_facets)
-    self.connect_neighbors(apex_index, horizon, facets, visible_facets, new_facets)
-    assert(all(len(facet.neighbors) == self.dimension for facet in new_facets))
-    return new_facets
 
   def prepare_new_facets(self, apex_index, horizon, facets, visible_facets):
     new_facets = []
@@ -234,7 +232,7 @@ class ConvexHull:
 
     return new_facets
 
-  def connect_neighbors(self, apex_index, horizon, facets, visible_facets, new_facets):
+  def connect_neighbors(self, apex_index, horizon, facets, new_facets):
     assert(len(new_facets) == len(horizon))
     num_of_peaks = len(horizon) * (self.dimension - 1)
     peaks = [[] for _ in range(num_of_peaks)]
@@ -247,10 +245,8 @@ class ConvexHull:
           peaks[peak_index] = [j for j in new_facet.vertex_indices if j != i and j != apex_index]
 
           # The vertexIndices are already sorted, so no need to sort them here.
-          # If the algorithm is changed to use non-sorted vertices, add the following line:
-          # peaks[peak_index] = sorted(peak)
           peak = peaks[peak_index]
-          hash_val = self.get_hash_value(peak)
+          hash_val = sum(vi * power for vi, power in zip(peak, self.powers_of_twelve))
           peak_hashes.append((hash_val, peak, new_facet))
           peak_index += 1
     peak_hashes.sort(key = lambda x: (x[0], x[1]))
@@ -261,10 +257,6 @@ class ConvexHull:
       assert(peak1 == peak2)
       facet1.neighbors.append(facet2)
       facet2.neighbors.append(facet1)
-
-  def get_hash_value(self, v):
-    assert(len(self.powers_of_twelve) == len(v))
-    return sum(vi * power for vi, power in zip(v, self.powers_of_twelve))
 
   def get_horizon_and_append_visible_facets(self, apex, facet, visible_facets):
     horizon = []
@@ -340,11 +332,11 @@ class ConvexHull:
       assert(len(facet.vertex_indices) == dimension)
       p1 = self.points[facet.vertex_indices[0]]
       for i in range(dimension - 1):
+        data_i = A.data()[i]
+        pi = self.points[facet.vertex_indices[i + 1]]
         for j in range(dimension):
-          A[i, j] = self.points[facet.vertex_indices[i + 1]][j] - p1[j]
+          data_i[j] = pi[j] - p1[j]
       b = facet.normal
-      for bi in b:
-        bi = mp.zero
       b[-1] = mp.one
       A[dimension - 1, dimension - 1] = mp.one
 
@@ -388,10 +380,12 @@ class ConvexHull:
       # (if L is needed, first divide A[ i ][ k ] by A[ k ][ k ], then subtract A[ i ][ k ] * A[ k ][ j ] from A[ i ][ j ])
       inv_diag = mp.one / A[k, k]
       # size_t numElements = min( n - k - 1, size_t( 15 ) )
+      data_k = A.data()[k]
       for i in range(k + 1, n):
-        factor = A[i, k] * inv_diag
+        data_i = A.data()[i]
+        factor = data_i[k] * inv_diag
         for j in range(k + 1, n):
-          A[i, j] -= factor * A[k, j]
+          data_i[j] -= factor * data_k[j]
 
     # LU factorization completed
     # No need to solve Ly = Pb, because b = [0,...,0,1]^T, so y == Pb
@@ -399,9 +393,10 @@ class ConvexHull:
     # Solve Ux = y by row-oriented back substitution
     # See Algorithm 3.1.2 in Golub and Van Loan
     for i in range(n - 1, -1, -1):
-      s = sum(A[i, j] * b[j] for j in range(i + 1, n))
+      data_i = A.data()[i]
+      s = sum(data_i[j] * b[j] for j in range(i + 1, n))
 
-      if A[i, i] != mp.zero:
+      if data_i[i] != mp.zero:
         b[i] = (b[i] - s) / A[i, i]
       else:
         # Matrix is singular
@@ -436,7 +431,7 @@ class ConvexHull:
 
   def scalar_product(self, a, b):
     self.distance_tests += 1
-    return sum(x * y for x, y in zip(a, b))
+    return sum(starmap(mul, zip(a, b)))
 
   def is_facet_visible_from_point(self, facet, point):
     # Returns true if the point is contained in the open negative halfspace of the facet
