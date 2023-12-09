@@ -97,7 +97,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
   x = matrix([1] * n)      # Primal variables
   s = matrix([1] * m_ineq) if m_ineq else matrix(0) # Slack variables for inequality constraints
   y = matrix([1] * m_eq) if m_eq else matrix(0)  # Multipliers for equality constraints
-  z = matrix([1] * m_ineq) if m_ineq else matrix(0)# Multipliers for inequality constraints
+  z = matrix([1] * m_ineq) if m_ineq else matrix(0) # Multipliers for inequality constraints
   
   def get_mu(s, z):
     return (s.T * z / m_ineq)[0] if m_ineq > 0 else mp.zero
@@ -153,7 +153,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
   # Return the solution and objective value
   f, r_grad, r_y, r_z, r_s = eval_func(x, s, y, z, 0)
   res, gap = get_residual_and_gap(s, z, r_grad, r_y, r_z)
-  return x, f, res, gap, iteration
+  return x, s, z, f, res, gap, iteration
 
 # Helper functions for linear algebra operations
 

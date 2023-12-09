@@ -22,6 +22,16 @@ class Facet:
     
 class ConvexHull:
   def __init__(self, points):
+    """
+    Initialize the ConvexHull object with a set of points.
+
+    Args:
+        points (list of tuples/lists): List of points in a high-dimensional space.
+                                 Each point should be represented as a tuple or list of equal length.
+    Raises:
+        ValueError: If the input list of points is empty or there are too few points.
+        TypeError: If the points are of erroneus dimension.
+    """
     if not points:
       raise ValueError("Points must not be empty")
     self.original_points = [tuple(mp.mpf(x) for x in p) for p in points]
@@ -40,7 +50,7 @@ class ConvexHull:
     random.seed(17)
 
     if num_points <= self.dimension:
-      raise TypeError("Too few points (%s) to compute hull in dimension %s" % (num_points, self.dimension))
+      raise ValueError("Too few points (%s) to compute hull in dimension %s" % (num_points, self.dimension))
 
     if any(len(p) != self.dimension for p in self.points):
       raise TypeError("All points must have the correct dimension")
