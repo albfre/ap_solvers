@@ -3,17 +3,22 @@ from mpmath import mp
 class matrix:
   def __init__(self, *args):
     if isinstance(args[0], (list, tuple)):
-      if isinstance(args[0][0], (list, tuple)):
-        # nested row matrix
-        self.rows = len(args[0])
-        self.cols = len(args[0][0])
-        self.__data = [[mp.mpf(x) for x in row] for row in args[0]]
+      if args[0]:
+        if isinstance(args[0][0], (list, tuple)):
+          # nested row matrix
+          self.rows = len(args[0])
+          self.cols = len(args[0][0])
+          self.__data = [[mp.mpf(x) for x in row] for row in args[0]]
+        else:
+          # row vector
+          v = args[0]
+          self.rows = len(v)
+          self.cols = 1
+          self.__data = [[mp.mpf(x)] for x in v]
       else:
-        # row vector
-        v = args[0]
-        self.rows = len(v)
-        self.cols = 1
-        self.__data = [[mp.mpf(x)] for x in v]
+        self.rows = 0
+        self.cols = 0
+        self.__data = []
     elif isinstance(args[0], int):
       # empty matrix of given dimensions
       if len(args) == 1:

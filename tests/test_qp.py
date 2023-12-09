@@ -10,6 +10,55 @@ import unittest
 from parameterized import parameterized
 
 class TestQP(unittest.TestCase):
+  @parameterized.expand([dense_mp_matrix.matrix, mp.matrix])
+  def test_unconstrained_qp(self, matrix):
+    mp.dps = 100
+    n = 10
+    Q = matrix(n, n)
+    c = matrix(n, 1)
+    for i in range(n):
+      c[i] = i
+      for j in range(n):
+        Q[i, j] = i * j
+      Q[i, i] = n * n
+    Q = Q + Q.T
+    A_eq = []
+    b_eq = []
+    A_ineq = []
+    b_ineq = []
+
+    tol = mp.mpf('1e-50')
+    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, matrix, tol)
+    self.assertTrue(abs(res) < tol)
+    self.assertTrue(abs(gap) < tol)
+    self.assertTrue(iteration == 1)
+
+  @parameterized.expand([dense_mp_matrix.matrix, mp.matrix])
+  def test_equality_constrained_qp(self, matrix):
+    mp.dps = 100
+    n = 10
+    Q = matrix(n, n)
+    c = matrix(n, 1)
+    for i in range(n):
+      c[i] = i
+      for j in range(n):
+        Q[i, j] = i * j
+      Q[i, i] = n * n
+    Q = Q + Q.T
+    A_eq = matrix(1, n)
+    b_eq = matrix(1, 1)
+    A_eq[0, 0] = 1
+    A_eq[0, 1] = 1
+    A_ineq = []
+    b_ineq = []
+
+    tol = mp.mpf('1e-50')
+    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, matrix, tol)
+    self.assertTrue(abs(res) < tol)
+    self.assertTrue(abs(gap) < tol)
+    self.assertTrue(iteration == 1)
+    print('iteration %s' % iteration)
+
   def test_small_qp(self):
     mp.dps = 100
     n = 2
@@ -29,7 +78,7 @@ class TestQP(unittest.TestCase):
     b_ineq = mp.matrix(n, 1)
 
     tol = mp.mpf('1e-20')
-    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix)
+    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol)
     self.assertTrue(abs(res) < tol)
     self.assertTrue(abs(gap) < tol)
 

@@ -9,20 +9,20 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
   """
   H = matrix(H)
   c = matrix(c)
-  A_eq = matrix(A_eq)
-  b_eq = matrix(b_eq)
-  A_ineq = matrix(A_ineq)
-  b_ineq = matrix(b_ineq)
+  A_eq = matrix(A_eq) if A_eq else matrix(0)
+  b_eq = matrix(b_eq) if b_eq else matrix(0)
+  A_ineq = matrix(A_ineq) if A_ineq else matrix(0)
+  b_ineq = matrix(b_ineq) if b_ineq else matrix(0)
 
   n = H.rows
   m_ineq = A_ineq.rows
   m_eq = A_eq.rows
 
   assert(H.rows == H.cols)
-  assert(A_ineq.cols == n)
-  assert(A_eq.cols == n)
-  assert(b_ineq.rows == m_ineq)
-  assert(b_eq.rows == m_eq)
+  assert(not A_ineq or A_ineq.cols == n)
+  assert(not A_eq or A_eq.cols == n)
+  assert b_ineq.rows == m_ineq, "b_eq.rows = %s, m_eq = %s" % (b_ineq.rows, m_ineq)
+  assert b_eq.rows == m_eq, "b_eq.rows = %s, m_eq = %s" % (b_eq.rows, m_eq)
 
   A_ineq_T = A_ineq.T
   A_eq_T = A_eq.T
@@ -35,8 +35,6 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
   # Define the function for evaluating the objective and constraints
   def eval_func(x, s, y, z, mu):
     Hx = H * x
-    A_eqx = A_eq * x
-    A_ineqx = A_ineq * x
 
     # Objective
     f = (0.5 * x.T * Hx + c_T * x)[0] # 0.5 x' H x + c' x
@@ -48,8 +46,8 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     if m_ineq > 0:
       r_grad -= A_ineq_T * z
 
-    r_y = A_eqx - b_eq
-    r_z = A_ineqx - s - b_ineq
+    r_y = A_eq * x - b_eq if A_eq else matrix(0)
+    r_z = A_ineq * x - s - b_ineq if A_ineq else matrix(0)
     r_s = eval_r_s(s, z, mu) # SZe - mu e
 
     return f, r_grad, r_y, r_z, r_s
@@ -73,7 +71,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
 
   # Define the function for computing the search direction
   def compute_search_direction(s, z, L, ipiv, r_grad, r_y, r_z, r_s):
-    r_zMinusZinvr_s = r_z + elementwise_division(r_s, z) # Aineq x - s - bineq + Z^-1 (SZe - mue)
+    r_zMinusZinvr_s = r_z + elementwise_division(r_s, z) if len(r_z) > 0 else r_z  # Aineq x - s - bineq + Z^-1 (SZe - mue)
 
     # Solve the PDS
     rhs = -matrix(r_grad.tolist() + r_y.tolist() + r_zMinusZinvr_s.tolist())
@@ -83,22 +81,23 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     # Extract the search direction components
     d = d.tolist()
     dx = matrix(d[:n])
-    dy = matrix(d[n:n + m_eq])
-    dz = -matrix(d[n + m_eq:n + m_eq + m_ineq])
+    dy = matrix(d[n:n + m_eq]) if m_eq else matrix(0)
+    dz = -matrix(d[n + m_eq:n + m_eq + m_ineq]) if m_ineq else matrix(0)
     ds = -elementwise_division(r_s + elementwise_product(s, dz), z) # -Z^-1 (rS + S dz)
 
     return dx, ds, dy, dz
 
   # Define the function for computing the step size
   def get_max_step(v, dv):
+    if len(v) == 0: return 1
     assert(v.cols == 1)
     return min(min(-v[i] / dv[i] if dv[i] < 0 else 1 for i in range(v.rows)), mp.one)
 
   # Initialize primal and dual variables
   x = matrix([1] * n)      # Primal variables
-  s = matrix([1] * m_ineq) # Slack variables for inequality constraints
-  y = matrix([1] * m_eq)   # Multipliers for equality constraints
-  z = matrix([1] * m_ineq) # Multipliers for inequality constraints
+  s = matrix([1] * m_ineq) if m_ineq else matrix(0) # Slack variables for inequality constraints
+  y = matrix([1] * m_eq) if m_eq else matrix(0)  # Multipliers for equality constraints
+  z = matrix([1] * m_ineq) if m_ineq else matrix(0)# Multipliers for inequality constraints
   
   def get_mu(s, z):
     return (s.T * z / m_ineq)[0] if m_ineq > 0 else mp.zero
@@ -120,9 +119,10 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
       break
 
     # Update and factorize PDS matrix
-    update_matrix(s, z)
+    if len(s) > 0:
+      update_matrix(s, z)
     L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(PDS.copy())
-    assert(info == 0)
+    assert info == 0, "info: %s" % info
 
     # Use the predictor-corrector method
 
@@ -144,7 +144,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     alpha_d = get_max_step(z, dz)
 
     # Update the variables
-    fraction_to_boundary = 0.995
+    fraction_to_boundary = 0.995 if m_ineq > 0 else 1
     x += fraction_to_boundary * alpha_p * dx
     s += fraction_to_boundary * alpha_p * ds
     y += fraction_to_boundary * alpha_d * dy
