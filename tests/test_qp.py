@@ -59,15 +59,16 @@ class TestQP(unittest.TestCase):
     self.assertTrue(iteration == 1)
     print('iteration %s' % iteration)
 
-  def test_small_qp(self):
+  @parameterized.expand([dense_mp_matrix.matrix, mp.matrix])
+  def test_small_qp(self, matrix):
     mp.dps = 100
     n = 2
     t0 = 1300
     t1 = 50
     a00 = 809
     a01 = 359
-    Q = mp.matrix([[a00 ** 2, a00 * a01], [a00 * a01, a01 **2]]) / t0 ** 2
-    c = -mp.matrix([a00, a01]) / t0
+    Q = matrix([[a00 ** 2, a00 * a01], [a00 * a01, a01 **2]]) / t0 ** 2
+    c = -matrix([a00, a01]) / t0
 
     # e' x = 1
     A_eq = mp.ones(1, n)
@@ -78,7 +79,7 @@ class TestQP(unittest.TestCase):
     b_ineq = mp.matrix(n, 1)
 
     tol = mp.mpf('1e-20')
-    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, mp.matrix, tol)
+    x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, matrix, tol)
     self.assertTrue(abs(res) < tol)
     self.assertTrue(abs(gap) < tol)
 
