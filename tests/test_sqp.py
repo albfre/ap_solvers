@@ -19,7 +19,7 @@ class TestSQP(unittest.TestCase):
 
     tol = mp.mpf('1e-50')
     opt = sqp.Sqp(f, None, [c], None)
-    x0 = [2, 2]
+    x0 = [1, 1]
     x, f, cs = opt.solve(x0)
     print('f: %s' % f)
     print('cs: %s' % cs)

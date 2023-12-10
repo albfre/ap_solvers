@@ -23,7 +23,7 @@ class Sqp:
     self.eta = mp.mpf('0.5')
     self.x_used_for_gradient_computation = None
 
-  def solve(self, x0, max_iter = 100):
+  def solve(self, x0, max_iter = 20):
     n = len(x0)
     self.hessian_approximation = self.matrix(n, n)
     for i in range(n):
@@ -63,14 +63,14 @@ class Sqp:
     tau_x = self.tol * (1 + max(x))
     tau_pi = self.tol * (1 + max(pi))
     for i in range(len(self.cs)):
-      if pi[i] > tau_pi: return False
+      if pi[i] < -tau_pi: return False
 
       ci = self.cs[i](x)
       if ci > tau_x: return False
       if ci * pi[i] > tau_pi: return False
 
       self._compute_gradients(x)
-      d = self.f_grad_k - self.jacobian_k.T * pi
+      d = self.f_grad_k + self.jacobian_k.T * pi
       if any(abs(di) > tau_pi for di in d): return False
     return True
 
@@ -81,7 +81,7 @@ class Sqp:
 
     self._compute_gradients(x1)
     delta = x1 - x0
-    y = self.f_grad_k - f_grad0 - (self.jacobian_k - jacobian0).T * pi1
+    y = self.f_grad_k - f_grad0 + (self.jacobian_k - jacobian0).T * pi1
 
     p = x_hat - x0 # search direction
     sigma = alpha * (mp.one - self.eta) * p.T * self.hessian_approximation * p
@@ -142,23 +142,35 @@ class Sqp:
     A_ineq = self.jacobian_k
     b_ineq = self.jacobian_k * x_k - self.evaluate_constraints(x_k)
     if True:
+      print('c')
+      print(self.cs[0](x_k))
+      print('jacobian')
+      print(self.jacobian_k)
+      print('jacobian * x_k')
+      print(self.jacobian_k * x_k)
+      print('jacobian * x_k - constraints')
+      print(self.jacobian_k * x_k - self.evaluate_constraints(x_k))
       print('Q')
       print(Q)
       print('A')
       print(A_ineq)
       print('b')
       print(b_ineq)
+      print('x')
+      print(x_k)
 
     x, s, pi, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, self.matrix, self.minor_tol)
     assert res < self.minor_tol, "Res = %s, tol = %s" % (res, self.minor_tol)
     assert gap < self.minor_tol, "Gap = %s, tol = %s" % (gap, self.minor_tol)
+    print('x after')
+    print(x)
     return self.matrix(x), self.matrix(s), self.matrix(pi), iteration
 
   def _line_search(self, x_k, s_k, pi_k, x_hat, s_hat, pi_hat):
     alpha = mp.one
     def m(x, s, pi):
       cs = self.evaluate_constraints(x)
-      phi = self.f(x) - pi.T * (cs - s)
+      phi = self.f(x) + pi.T * (cs - s)
       for j in range(len(self.cs)):
         phi += 0.5 * self.rho[j] * (cs[j] - s[j]) ** 2
       return phi
