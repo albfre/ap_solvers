@@ -2,7 +2,7 @@ from ap_solvers import bunch_kaufman
 from ap_solvers import dense_mp_matrix
 from mpmath import mp
 
-def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100):
+def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100, print_stats=True):
   """ minimize 0.5 x' H x + c' x
       st    Aeq x = beq
             Aineq x >= bineq
@@ -113,8 +113,9 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
 
     # Check the convergence criterion
     res, gap = get_residual_and_gap(s, z, r_grad, r_y, r_z)
-    print_dps = 10
-    print('%s. f: %s, res: %s, gap: %s' % (iteration, mp.nstr(f, print_dps), mp.nstr(res, print_dps), mp.nstr(gap, print_dps)))
+    if print_stats:
+      print_dps = 10
+      print('%s. f: %s, res: %s, gap: %s' % (iteration, mp.nstr(f, print_dps), mp.nstr(res, print_dps), mp.nstr(gap, print_dps)))
     if res <= tol and gap <= tol:
       break
 
