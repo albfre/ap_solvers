@@ -36,9 +36,10 @@ class Sqp:
     for iteration in range(max_iter):
       self._compute_gradients(x_k)
       x_hat, s_hat, pi_hat, minor_iterations = self._solve_qp(x_k)
-      x_next, s_next, pi_next, alpha = self._line_search(x_k, s_k, pi_k, x_hat, s_hat, pi_hat)
-      self._update_hessian_approximation(x_k, x_next, x_hat, pi_next, alpha)
-      x_k, s_k, pi_k = x_next, s_next, pi_next
+      x_prev, s_prev, pi_prev = x_k, s_k, pi_k
+      x_k, s_k, pi_k, alpha = self._line_search(x_k, s_k, pi_k, x_hat, s_hat, pi_hat)
+
+      self._update_hessian_approximation(x_prev, x_k, x_hat, pi_k, alpha)
 
       self._print(iteration, x_k, alpha, minor_iterations)
 
@@ -79,14 +80,31 @@ class Sqp:
 
     self._compute_gradients(x1)
     delta = x1 - x0
-    y = self.f_grad_k - f_grad0 - (self.jacobian_k - jacobian0).T * pi1
+    deltaJ = self.jacobian_k - jacobian0
+    deltaJT = deltaJ.T
+    y = self.f_grad_k - f_grad0 - deltaJT * pi1
 
     p = x_hat - x0 # search direction
     sigma = (alpha * (mp.one - self.eta) * p.T * self.hessian_approximation * p)[0]
 
     yTdelta = (y.T * delta)[0]
+    perform_update = yTdelta >= sigma
 
-    if yTdelta >= sigma:
+    if not perform_update:
+      # Second modification in SIAM Review paper on SNOPT
+      beta = sigma - yTdelta
+      v = deltaJ * delta
+      w = self.evaluate_constraints(x1) - self.evaluate_constraints(x0) - jacobian0 * delta
+      a = self.matrix([vi * wi for vi, wi in zip(v, w)])
+      if (beta > mp.zero and max(a) > mp.zero) or (beta < mp.zero and min(a) < mp.zero):
+        omega = self._solve_identity_hessian_single_constraint_positive_problem(a, beta)
+        if (omega.T * omega)[0] < 1e6:
+          y = y + deltaJT * self.matrix([oi * wi for oi, wi in zip(omega, w)])
+          yTdelta = (y.T * delta)[0]
+          perform_update = True
+          print('### modified update')
+
+    if perform_update:
       q = self.hessian_approximation * delta
       qTdelta = (q.T * delta)[0]
       self.hessian_approximation += y * y.T / yTdelta + q * q.T / qTdelta
