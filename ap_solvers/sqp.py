@@ -2,7 +2,7 @@ from ap_solvers import dense_mp_matrix, qp
 from mpmath import mp
 
 class Sqp:
-  def __init__(self, f, f_grad, cs, c_grads, tol = mp.mpf('1e-20'), matrix = dense_mp_matrix.matrix):
+  def __init__(self, f, f_grad, cs, c_grads, tol = mp.mpf('1e-20'), matrix = dense_mp_matrix.matrix, print_stats = True):
     """
     Initialize the Sqp object with a set of points.
 
@@ -19,9 +19,10 @@ class Sqp:
     self.tol = tol
     self.minor_tol = tol / 100
     self.matrix = matrix
-    self.print_stats = True
+    self.print_stats = print_stats
     self.eta = mp.mpf('0.5')
     self.x_used_for_gradient_computation = None
+    self.updated_hessian = False
 
   def solve(self, x0, max_iter = 100):
     n = len(x0)
@@ -32,22 +33,32 @@ class Sqp:
     x_k = self.matrix(x0)
     s_k = self.matrix(len(self.cs), 1)
     pi_k = self.matrix(len(self.cs), 1)
+    status = ""
 
     for iteration in range(max_iter):
       self._compute_gradients(x_k)
       x_hat, s_hat, pi_hat, minor_iterations = self._solve_qp(x_k)
       x_prev, s_prev, pi_prev = x_k, s_k, pi_k
-      x_k, s_k, pi_k, alpha = self._line_search(x_k, s_k, pi_k, x_hat, s_hat, pi_hat)
+      try:
+        x_k, s_k, pi_k, alpha = self._line_search(x_k, s_k, pi_k, x_hat, s_hat, pi_hat)
+      except ValueError as e:
+        status = "Current point could not be improved"
+        break
 
-      self._update_hessian_approximation(x_prev, x_k, x_hat, pi_k, alpha)
-
-      self._print(iteration, x_k, alpha, minor_iterations)
+      if self.print_stats:
+        self._print(iteration, x_k, alpha, minor_iterations)
 
       if self._check_convergence(x_k, pi_k):
-        if self.print_stats:
-          print('Optimal solution found')
+        status = "Optimal solution found"
         break
-    return x_k, self.f(x_k), self.evaluate_constraints(x_k)
+
+      if iteration + 1 < max_iter:
+        self._update_hessian_approximation(x_prev, x_k, x_hat, pi_k, alpha)
+
+    if iteration + 1 == max_iter:
+      status = "Maximum number of iterations"
+
+    return x_k, self.f(x_k), self.evaluate_constraints(x_k), status
 
   def evaluate_constraints(self, x):
     return self.matrix([c(x) for c in self.cs])
@@ -56,12 +67,15 @@ class Sqp:
     print_dps = 10
     obj = mp.nstr(self.f(x), print_dps)
     step = mp.nstr(alpha, print_dps)
+    rho = mp.nstr(sum(self.rho), print_dps)
     c = mp.nstr(max(self.evaluate_constraints(x)), print_dps)
-    print('iter=%s, step=%s minors=%s, obj=%s, constr=%s' % (iteration, step, minor_iterations, obj, c))
+    if iteration % 10 == 0:
+      print("Iter. \t Step \t Minors \t f(x) \t ||c(x)|| \t rho \t updated H")
+    print('%s \t %s \t %s \t %s \t %s \t %s \t %s' % (iteration, step, minor_iterations, obj, c, rho, self.updated_hessian))
 
   def _check_convergence(self, x, pi):
-    tau_x = self.tol * (1 + max(x))
-    tau_pi = self.tol * (1 + max(pi))
+    tau_x = self.tol * (mp.one + max(x))
+    tau_pi = self.tol * (mp.one + max(pi))
     if any(p < -tau_pi for p in pi): return False
     for i in range(len(self.cs)):
       ci = self.cs[i](x)
@@ -102,18 +116,12 @@ class Sqp:
           y = y + deltaJT * self.matrix([oi * wi for oi, wi in zip(omega, w)])
           yTdelta = (y.T * delta)[0]
           perform_update = True
-          print('### modified update')
 
     if perform_update:
       q = self.hessian_approximation * delta
       qTdelta = (q.T * delta)[0]
       self.hessian_approximation += y * y.T / yTdelta + q * q.T / qTdelta
-    elif self.print_stats:
-      print_dps = 10
-      yTdelta = mp.nstr(yTdelta, print_dps)
-      sigma = mp.nstr(sigma, print_dps)
-      print("No hessian update. y' delta = %s, sigma = %s" % (yTdelta, sigma))
-
+    self.updated_hessian = perform_update
 
   def _finite_difference_grad(self, f, x):
     h = self.tol
@@ -129,7 +137,7 @@ class Sqp:
     return grad
 
   def _compute_gradients(self, x):
-    if x == self.x_used_for_gradient_computation:
+    if self.x_used_for_gradient_computation and x == self.x_used_for_gradient_computation:
       return
 
     self.f_grad_k = self.f_grad(x) if self.f_grad else self._finite_difference_grad(self.f, x)
@@ -196,11 +204,11 @@ class Sqp:
 
     Using J p_x - p_s = -(c - s), we get
 
-    phi'(0) = g' p_x + (pi - p_pi)' (c - s) + sum(rho_i (c_i - s_i)^2),
+    phi'(0) = g' p_x + (pi - p_pi)' (c - s) - sum(rho_i (c_i - s_i)^2),
 
     which means that the constraint amounts to
 
-    (c - s).^2 rho = g' p_x + (pi - p_pi)' (c - s) - 0.5 p_x' H p_x
+    (c - s).^2 rho = g' p_x + (pi - p_pi)' (c - s) + 0.5 p_x' H p_x
     """
     self._compute_gradients(x_k)
     cs = self.evaluate_constraints(x_k)
@@ -208,10 +216,9 @@ class Sqp:
     p_pi = pi_hat - pi_k
     cMinusS = cs - s_k
     cMinusS2 = self.matrix([c**2 for c in cMinusS])
-    rhs = (self.f_grad_k.T * p_x + (pi_k - p_pi).T * cMinusS - 0.5 * p_x.T * self.hessian_approximation * p_x)[0]
+    rhs = (self.f_grad_k.T * p_x + (pi_k - p_pi).T * cMinusS + 0.5 * p_x.T * self.hessian_approximation * p_x)[0]
     if rhs > mp.zero and max(cMinusS2) > mp.zero:
       rho_star = self._solve_identity_hessian_single_constraint_positive_problem(cMinusS2, rhs)
-      print('New rho: %s' % rho_star)
       self.rho = rho_star
 
   def _line_search(self, x_k, s_k, pi_k, x_hat, s_hat, pi_hat):
@@ -231,11 +238,6 @@ class Sqp:
       s = (mp.one - alpha) * s_k + alpha * s_hat
       pi = (mp.one - alpha) * pi_k + alpha * pi_hat
       phi = merit_function(x, s, pi)
-      if self.print_stats:
-        print_dps = 10
-        phi_str = mp.nstr(phi[0], print_dps)
-        m0_str = mp.nstr(m0[0], print_dps)
-        #print('Value for alpha=%s: %s, m0=%s' % (alpha, phi_str, m0_str))
 
       if phi[0] < m0[0]:
         return x, s, pi, alpha
