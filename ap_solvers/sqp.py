@@ -36,7 +36,6 @@ class Sqp:
     status = ""
 
     for iteration in range(max_iter):
-      self._compute_gradients(x_k)
       x_hat, s_hat, pi_hat, minor_iterations = self._solve_qp(x_k)
       x_prev, s_prev, pi_prev = x_k, s_k, pi_k
       try:
@@ -46,7 +45,7 @@ class Sqp:
         break
 
       if self.print_stats:
-        self._print(iteration, x_k, alpha, minor_iterations)
+        self._print(iteration, x_k, pi_k, alpha, minor_iterations)
 
       if self._check_convergence(x_k, pi_k):
         status = "Optimal solution found"
@@ -63,40 +62,46 @@ class Sqp:
   def evaluate_constraints(self, x):
     return self.matrix([c(x) for c in self.cs])
 
-  def _print(self, iteration, x, alpha, minor_iterations):
-    print_dps = 10
+  def _print(self, iteration, x, pi, alpha, minor_iterations):
+    print_dps = 2
     obj = mp.nstr(self.f(x), print_dps)
     step = mp.nstr(alpha, print_dps)
     rho = mp.nstr(sum(self.rho), print_dps)
-    c = mp.nstr(max(self.evaluate_constraints(x)), print_dps)
+    c = mp.nstr(min(self.evaluate_constraints(x)), print_dps)
+
+    #print('grad: ' + str(self._f_grad_k))
+    #print('J pi: ' + str(self._jacobian_k.T * pi))
+    d = mp.nstr(max(abs(xi) for xi in (self._f_grad_k - self._jacobian_k.T * pi)), print_dps)
     if iteration % 10 == 0:
-      print("Iter. \t Step \t Minors \t f(x) \t ||c(x)|| \t rho \t updated H")
-    print('%s \t %s \t %s \t %s \t %s \t %s \t %s' % (iteration, step, minor_iterations, obj, c, rho, self.updated_hessian))
+      print("Iter. \t Step \t Min. \t f(x) \t ||dL(x)|| \t min c \t rho \t updated H")
+    print('%s \t %s \t %s \t %s \t %s \t %s \t %s \t %s' % (iteration, step, minor_iterations, obj, d, c, rho, self.updated_hessian))
 
   def _check_convergence(self, x, pi):
-    tau_x = self.tol * (mp.one + max(x))
-    tau_pi = self.tol * (mp.one + max(pi))
+    tau_x = self.tol * (mp.one + max(abs(xi) for xi in x))
+    tau_pi = self.tol * (mp.one + max(abs(p) for p in pi))
+
     if any(p < -tau_pi for p in pi): return False
     for i in range(len(self.cs)):
       ci = self.cs[i](x)
       if ci < -tau_x: return False
       if ci * pi[i] > tau_pi: return False
 
-      self._compute_gradients(x)
-      d = self.f_grad_k - self.jacobian_k.T * pi
-      if any(abs(di) > tau_pi for di in d): return False
+    self._compute_gradients(x)
+    d = self._f_grad_k - self._jacobian_k.T * pi
+    if any(abs(di) > tau_pi for di in d): return False
     return True
 
 
   def _update_hessian_approximation(self, x0, x1, x_hat, pi1, alpha):
-    f_grad0 = self.f_grad_k.copy()
-    jacobian0 = self.jacobian_k.copy()
+    self._compute_gradients(x0)
+    f_grad0 = self._f_grad_k
+    jacobian0 = self._jacobian_k
 
     self._compute_gradients(x1)
     delta = x1 - x0
-    deltaJ = self.jacobian_k - jacobian0
+    deltaJ = self._jacobian_k - jacobian0
     deltaJT = deltaJ.T
-    y = self.f_grad_k - f_grad0 - deltaJT * pi1
+    y = self._f_grad_k - f_grad0 - deltaJT * pi1
 
     p = x_hat - x0 # search direction
     sigma = (alpha * (mp.one - self.eta) * p.T * self.hessian_approximation * p)[0]
@@ -140,15 +145,15 @@ class Sqp:
     if self.x_used_for_gradient_computation and x == self.x_used_for_gradient_computation:
       return
 
-    self.f_grad_k = self.f_grad(x) if self.f_grad else self._finite_difference_grad(self.f, x)
-    self.jacobian_k = self.matrix(len(self.cs), len(x))
+    self._f_grad_k = self.f_grad(x) if self.f_grad else self._finite_difference_grad(self.f, x)
+    self._jacobian_k = self.matrix(len(self.cs), len(x))
     for i in range(len(self.cs)):
       if self.c_grads and self.c_grads[i]:
         grad = self.c_grads[i](x)
       else:
         grad = self._finite_difference_grad(self.cs[i], x)
       for j in range(len(grad)):
-        self.jacobian_k[i, j] = grad[j]
+        self._jacobian_k[i, j] = grad[j]
     self.x_used_for_gradient_computation = x
     
   def _solve_qp(self, x_k):
@@ -162,12 +167,12 @@ class Sqp:
     """
     Q = self.hessian_approximation
     
-    c = self.f_grad_k - Q * x_k
+    self._compute_gradients(x_k)
+    c = self._f_grad_k - Q * x_k
     A_eq = []
     b_eq = []
-    self._compute_gradients(x_k)
-    A_ineq = self.jacobian_k
-    b_ineq = self.jacobian_k * x_k - self.evaluate_constraints(x_k)
+    A_ineq = self._jacobian_k
+    b_ineq = self._jacobian_k * x_k - self.evaluate_constraints(x_k)
 
     x, s, pi, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, self.matrix, self.minor_tol, 100, False)
     assert res < self.minor_tol, "Res = %s, tol = %s" % (res, self.minor_tol)
@@ -216,10 +221,20 @@ class Sqp:
     p_pi = pi_hat - pi_k
     cMinusS = cs - s_k
     cMinusS2 = self.matrix([c**2 for c in cMinusS])
-    rhs = (self.f_grad_k.T * p_x + (pi_k - p_pi).T * cMinusS + 0.5 * p_x.T * self.hessian_approximation * p_x)[0]
+    rhs = (self._f_grad_k.T * p_x + (pi_k - p_pi).T * cMinusS + 0.5 * p_x.T * self.hessian_approximation * p_x)[0]
     if rhs > mp.zero and max(cMinusS2) > mp.zero:
       rho_star = self._solve_identity_hessian_single_constraint_positive_problem(cMinusS2, rhs)
-      self.rho = rho_star
+
+      if True:
+        delta_rho = mp.one
+        rho_hat = self.rho.copy()
+        for i in range(len(self.rho)):
+          if self.rho[i] > 4 * (rho_star[i] + delta_rho):
+            rho_hat[i] = mp.sqrt(self.rho[i] * (rho_star[i] + delta_rho))
+        for i in range(len(self.rho)):
+          self.rho[i] = max(rho_hat[i], rho_star[i])
+      else:
+        self.rho = rho_star
 
   def _line_search(self, x_k, s_k, pi_k, x_hat, s_hat, pi_hat):
     self._update_rho(x_k, s_k, pi_k, x_hat, pi_hat)
