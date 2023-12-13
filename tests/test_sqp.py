@@ -46,11 +46,11 @@ class TestSQP(unittest.TestCase):
     target = range(10, 20)
     oar = range(5, 15)
     dose_matrix = matrix(n_vox, n_bix)
-    dose_matrix_T = dose_matrix.T
 
     for i in range(n_vox):
       for j in range(n_bix):
         dose_matrix[i, j] = random.random()
+    dose_matrix_T = dose_matrix.T
 
     def f(x):
       val = mp.zero
@@ -63,8 +63,8 @@ class TestSQP(unittest.TestCase):
         val += 1 * (dose[i] - mp.zero)**2
       return val
 
-    def grad_f(x):
-      grad_wrt_dose = matrix([mp.zero] * n_vox)
+    def f_grad(x):
+      grad_wrt_dose = matrix(n_vox, 1)
       dose = dose_matrix * x
       for i in target:
         grad_wrt_dose[i] += 2 * 100 * (dose[i] - mp.one)
@@ -80,14 +80,23 @@ class TestSQP(unittest.TestCase):
       dose = dose_matrix * x
       for i in target:
         val += min(dose[i] - 0.8 * mp.one, mp.zero)**2
-        #val += (dose[i])**2
-      return -val + mp.mpf('1e-3') # minus sing to get min(d - 0.8, 0)^2 <= 0
+      return -val #-val + mp.mpf('1e-6') # minus sing to get min(d - 0.8, 0)^2 <= 0
+
+    def c_grad(x):
+      grad_wrt_dose = matrix(n_vox, 1)
+      dose = dose_matrix * x
+      for i in target:
+        grad_wrt_dose[i] += 2 * min(dose[i] - 0.8 * mp.one, 0)
+      return -dose_matrix_T * grad_wrt_dose
         
     tol = mp.mpf('1e-20')
-    opt = sqp.Sqp(f, None, [c], None, tol=tol, matrix=matrix, print_stats=True)
-    x0 = [1] * n_bix
+    opt = sqp.Sqp(f, f_grad, [c], [c_grad], tol=tol, matrix=matrix, print_stats=True)
+    x0 = matrix([1] * n_bix)
     tic = time.time()
-    x, f, cs, status = opt.solve(x0, 400)
+    print('finite diff: %s' % opt._finite_difference_grad(f, x0))
+    print('grad: %s' % f_grad(x0))
+
+    x, f, cs, status = opt.solve(x0, 100)
     toc = time.time() - tic
     print_dps = 10
     print(status)

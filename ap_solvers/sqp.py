@@ -73,8 +73,10 @@ class Sqp:
     #print('J pi: ' + str(self._jacobian_k.T * pi))
     d = mp.nstr(max(abs(xi) for xi in (self._f_grad_k - self._jacobian_k.T * pi)), print_dps)
     if iteration % 10 == 0:
-      print("Iter. \t Step \t Min. \t f(x) \t ||dL(x)|| \t min c \t rho \t updated H")
-    print('%s \t %s \t %s \t %s \t %s \t %s \t %s \t %s' % (iteration, step, minor_iterations, obj, d, c, rho, self.updated_hessian))
+      print("Iter. \t Step \t Min. \t f(x) \t ||dL(x)|| \t" + "min c".rjust(8) + "\trho \t updated H")
+    n = 7
+    print(f"{str(iteration).ljust(n)}\t{step.rjust(n)}\t{str(minor_iterations).ljust(n)}\t{obj.rjust(n)}\t{d.rjust(8)}\t{c.rjust(8)}\t{rho.rjust(n)}\t{str(self.updated_hessian).ljust(n)}")
+    #print('%s \t %s \t %s \t %s \t %s \t %s \t %s \t %s' % (iteration, step, minor_iterations, obj, d, c, rho, self.updated_hessian))
 
   def _check_convergence(self, x, pi):
     tau_x = self.tol * (mp.one + max(abs(xi) for xi in x))
