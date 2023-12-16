@@ -2,31 +2,40 @@
 
 Arbitrary precision solvers using mpmath. It provides the following solvers:
 
-## Bunch-Kaufman solver
+* Sequential quadratic programming (SQP) solver
+* Quadratic programming (QP) solver
+* Convex hull solver
+* Bunch-Kaufman solver
 
-The Bunch-Kaufman solver is a matrix factorization solver for symmetric indefinite matrices.
+## SQP solver
+
+The SQP solver can solve constrained nonlinear optimization problems on the form
+$$\text{minimize} f(x) \text{ subject to } g_i(x) \geq 0, \text{for all} i.$$ If gradients are not provided they are approximated by finite differences.
 
 Usage:
 ```python
-# Example code for using the quadratic programming solver
+# Example code for using the sequential quadratic programming solver
 
-from ap_solvers import bunch_kaufman
+from ap_solvers import sqp, dense_mp_matrix
 from mpmath import mp
 
 mp.dps = 50 # Set decimal precision
 
-A = mp.matrix([[4, 2, -2], [2, 5, 6], [-2, 6, 5]])
-b = mp.matrix([1, 2, 3])
+f = lambda x: (x[0] - 1)**2 + (x[1] - 0.25)**2 # (x1-1)^2 + (x2-0.25)^2
+c = lambda x: -(x[0] ** 2 + x[1] ** 2 - mp.one) # x1^2 + x2^2 <= 1
 
-L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(A)
-x = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, b)
+tol = mp.mpf('1e-20')
+opt = sqp.Sqp(f, None, [c], None, tol=tol, matrix=matrix, print_stats=True)
+x, f, cs, status = opt.solve(x0, max_iter)
 
-print(str(x))
+print(str(f))
 ```
 
-## Quadratic programming solver
+## QP solver
 
-The primal dual interior point solver can solve optimization problems with convex quadratic objective functions and linear equality and inequality constraints.
+The primal dual interior point solver can solve optimization problems with convex quadratic objective functions and linear equality and inequality constraints. It solves problems on the form
+
+$$\text{minimize} 0.5 x' H x + c' x \text{ subject to } A_{\text{eq}} x = b_{\text{eq}} \text{ and } A_{\text{ineq}} x \geq b_{\text{ineq}}.
 
 Usage:
 ```python
@@ -80,3 +89,26 @@ points = [[0, 0, 0],
 ch = convex_hull.ConvexHull(points)
 print(ch.vertices)
 ```
+
+## Bunch-Kaufman solver
+
+The Bunch-Kaufman solver is a matrix factorization solver for symmetric indefinite matrices.
+
+Usage:
+```python
+# Example code for using the quadratic programming solver
+
+from ap_solvers import bunch_kaufman
+from mpmath import mp
+
+mp.dps = 50 # Set decimal precision
+
+A = mp.matrix([[4, 2, -2], [2, 5, 6], [-2, 6, 5]])
+b = mp.matrix([1, 2, 3])
+
+L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(A)
+x = bunch_kaufman.overwriting_solve_using_factorization(L, ipiv, b)
+
+print(str(x))
+```
+
