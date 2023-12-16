@@ -278,7 +278,6 @@ class Sqp:
         v += self.rho[j] * (cs[j] - s[j]) * jacPxMinusPs[j]
       return v
       
-
     self._compute_gradients(x_k)
     cs = self.evaluate_constraints(x_k)
 
@@ -306,13 +305,11 @@ class Sqp:
         print(mp.nstr(alpha, print_dps))
         print(mp.nstr(-eta * d_m_0, print_dps))
         print(mp.nstr(abs(merit_function_derivative(alpha)), print_dps))
-      if psi(alpha) < mp.zero: #and abs(merit_function_derivative(alpha)) <= -eta * d_m_0:
-      #if bounded_constraint_violations and phi[0] < m0[0]:
-      #if bounded_constraint_violations and sufficient_decrease:
+      if psi(alpha) < mp.zero: # and abs(merit_function_derivative(alpha)) <= eta * abs(d_m_0):
         cs = self.evaluate_constraints(x)
         s = self.matrix([si if rho_i == mp.zero else max(ci + pi_i / rho_i, mp.zero) for si, ci, pi_i, rho_i in zip(s, cs, pi, self.rho)])
         return x, s, pi, alpha
 
-      alpha /= 2
+      alpha *= 0.5
 
     raise ValueError("Current point could not be improved")
