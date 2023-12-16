@@ -10,7 +10,7 @@ Arbitrary precision solvers using mpmath. It provides the following solvers:
 ## SQP solver
 
 The SQP solver can solve constrained nonlinear optimization problems on the form
-$$\text{minimize} f(x) \text{ subject to } g_i(x) \geq 0, \text{for all} i.$$ If gradients are not provided they are approximated by finite differences.
+$$\underset{x}{\text{minimize}} f(x) \text{ subject to } g_i(x) \geq 0 \text{ for all } i.$$ If gradients are not provided they are approximated by finite differences.
 
 Usage:
 ```python
@@ -35,7 +35,7 @@ print(str(f))
 
 The primal dual interior point solver can solve optimization problems with convex quadratic objective functions and linear equality and inequality constraints. It solves problems on the form
 
-$$\text{minimize} 0.5 x' H x + c' x \text{ subject to } A_{\text{eq}} x = b_{\text{eq}} \text{ and } A_{\text{ineq}} x \geq b_{\text{ineq}}.
+$$\underset{x}{\text{minimize}} 0.5 x' H x + c' x \text{ subject to } A_{\text{eq}} x = b_{\text{eq}} \text{ and } A_{\text{ineq}} x \geq b_{\text{ineq}}.
 
 Usage:
 ```python
