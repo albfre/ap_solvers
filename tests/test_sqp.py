@@ -12,7 +12,7 @@ from parameterized import parameterized
 
 class TestSQP(unittest.TestCase):
   @parameterized.expand([dense_mp_matrix.matrix, mp.matrix])
-  def ap_test_sqp(self, matrix):
+  def test_sqp(self, matrix):
     mp.dps = 100
 
     f = lambda x: (x[0] - 1)**2 + (x[1] - 0.25)**2 # (x1-1)^2 + (x2-0.25)^2
@@ -89,12 +89,12 @@ class TestSQP(unittest.TestCase):
         grad_wrt_dose[i] += 2 * min(dose[i] - 0.8 * mp.one, 0)
       return -dose_matrix_T * grad_wrt_dose
         
-    tol = mp.mpf('1e-20')
+    tol = mp.mpf('1e-10')
     opt = sqp.Sqp(f, f_grad, [c], [c_grad], tol=tol, matrix=matrix, print_stats=True)
     x0 = matrix([1] * n_bix)
     tic = time.time()
-    print('finite diff: %s' % opt._finite_difference_grad(f, x0))
-    print('grad: %s' % f_grad(x0))
+    #print('finite diff: %s' % opt._finite_difference_grad(f, x0))
+    #print('grad: %s' % f_grad(x0))
 
     x, f, cs, status = opt.solve(x0, 100)
     toc = time.time() - tic
@@ -102,6 +102,11 @@ class TestSQP(unittest.TestCase):
     print(status)
     f_str = mp.nstr(f, print_dps)
     print('f: %s' % f_str)
+    opt._compute_gradients(x)
+    jac_str = [mp.nstr(c, print_dps) for c in opt._jacobian_k]
+    f_grad_str = [mp.nstr(fi, print_dps) for fi in opt._f_grad_k]
+    print('fgrad: %s' % f_grad_str)
+    print('jac: %s' % jac_str)
     for i in range(len(cs)):
       cs_str = mp.nstr(cs[i], print_dps)
       print('c[%s]: %s' % (i, cs_str))
@@ -109,6 +114,71 @@ class TestSQP(unittest.TestCase):
     for i in range(len(x)):
       x_str = mp.nstr(x[i], print_dps)
       print('x[%s]: %s' % (i, x_str))
+    print('Time to solve: %s' % toc)
+
+  def _test_scipy_sqp(self):
+    mp.dps = 100
+    random.seed(17)
+    n_vox = 50
+    n_bix = 5
+    target = range(10, 20)
+    oar = range(5, 15)
+    dose_matrix = np.array([[0.0]*n_bix for i in range(n_vox)])
+
+    for i in range(n_vox):
+      for j in range(n_bix):
+        dose_matrix[i, j] = random.random()
+    dose_matrix_T = dose_matrix.T
+
+    def f(x):
+      val = 0
+      dose = dose_matrix @ x
+      for i in target:
+        val += 100 * (dose[i] - 1)**2
+      for i in oar:
+        val += 10 * (dose[i] - 0)**2
+      for i in range(n_vox):
+        val += 1 * (dose[i] - 0)**2
+      return val
+
+    def f_grad(x):
+      grad_wrt_dose = matrix(n_vox, 1)
+      dose = dose_matrix * x
+      for i in target:
+        grad_wrt_dose[i] += 2 * 100 * (dose[i] - mp.one)
+      for i in oar:
+        grad_wrt_dose[i] += 2 * 10 * (dose[i] - mp.zero)
+      for i in range(n_vox):
+        grad_wrt_dose[i] += 2 * 1 * (dose[i] - mp.zero)
+      return dose_matrix_T * grad_wrt_dose
+
+    def c(x):
+      val = 0
+      dose = dose_matrix @ x
+      for i in target:
+        val += min(dose[i] - 0.8 * 1, 0)**2
+      return -val #-val + mp.mpf('1e-6') # minus sing to get min(d - 0.8, 0)^2 <= 0
+
+    def c_grad(x):
+      grad_wrt_dose = matrix(n_vox, 1)
+      dose = dose_matrix * x
+      for i in target:
+        grad_wrt_dose[i] += 2 * min(dose[i] - 0.8 * mp.one, 0)
+      return -dose_matrix_T * grad_wrt_dose
+
+    constraints = ({'type': 'ineq', 'fun': c})
+
+# Optimization using SLSQP
+        
+    x0 = np.array([1.0] * n_bix)
+    print(str(x0))
+    tic = time.time()
+    options = {'maxiter':5000}
+    result = scipy.optimize.minimize(f, x0, method='SLSQP', constraints=constraints, tol=1e-25, options=options)
+    toc = time.time() - tic
+    print_dps = 10
+    print(result)
+    print(str(c(result.x)))
     print('Time to solve: %s' % toc)
 
 if __name__ == "__main__":
