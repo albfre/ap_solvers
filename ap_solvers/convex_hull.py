@@ -1,7 +1,7 @@
 from ap_solvers import dense_mp_matrix
 from mpmath import mp
 import random
-from itertools import starmap
+from itertools import starmap, chain
 from operator import mul
 
 class Facet:
@@ -34,6 +34,7 @@ class ConvexHull:
     """
     if not points:
       raise ValueError("Points must not be empty")
+    self.allow_restart = True
     self.original_points = [tuple(mp.mpf(x) for x in p) for p in points]
     self.unperturbed_points = list(set(self.original_points))
     self.points = self.unperturbed_points
@@ -55,7 +56,8 @@ class ConvexHull:
     if any(len(p) != self.dimension for p in self.points):
       raise TypeError("All points must have the correct dimension")
 
-    self.vertices = self.compute()
+    self.simplices, self.equations = self.compute()
+    self.vertices = list(set(chain(*self.simplices)))
 
   def compute(self):
     self.facets = self.initial_simplex()
@@ -79,14 +81,16 @@ class ConvexHull:
       self.points = [tuple([coord + random.uniform(-perturbation, perturbation) for coord in p]) for p in self.unperturbed_points]
       return self.compute()
 
-    vertex_indices = []
+    simplices = []
+    equations = []
     for facet in self.facets:
-      vertex_indices.append(facet.vertex_indices)
-      vis = vertex_indices[-1]
+      simplices.append(facet.vertex_indices)
+      equations.append(facet.normal + [facet.offset])
+      vis = simplices[-1]
       for i in range(self.dimension):
         vis[i] = self.original_points.index(self.unperturbed_points[vis[i]])
 
-    return vertex_indices
+    return simplices, equations
 
   def initial_indices(self):
     indices = set()
@@ -204,6 +208,14 @@ class ConvexHull:
     facets = [facet for facet in facets if not facet.visible]
 
     self.throw_if_not_convex_polytope(facets)
+
+    # Compute equations with original points
+    self.allow_restart = False
+    self.points = self.unperturbed_points
+    try:
+      self.update_facet_normal_and_offset(origin, facets)
+    except Exception as e:
+      print("An exception occurred while calculating equations:", str(e))
 
   def prepare_new_facets(self, apex_index, horizon, facets, visible_facets):
     new_facets = []
@@ -340,20 +352,22 @@ class ConvexHull:
     assert(A.cols == self.dimension)
     for facet in facets:
       assert(len(facet.vertex_indices) == dimension)
+      b = facet.normal
+
       p1 = self.points[facet.vertex_indices[0]]
       for i in range(dimension - 1):
         data_i = A.data()[i]
         pi = self.points[facet.vertex_indices[i + 1]]
         for j in range(dimension):
           data_i[j] = pi[j] - p1[j]
-      b = facet.normal
+      b = [mp.zero] * dimension
       b[-1] = mp.one
       A[dimension - 1, dimension - 1] = mp.one
 
       # Solve A x = b
       self.overwriting_solve_linear_system_of_equations(A, b)
-      abs_sum = sum(abs(bi) for bi in b)
-      b = [bi / abs_sum for bi in b]
+      norm = mp.sqrt(sum(bi**2 for bi in b))
+      facet.normal = [bi / norm for bi in b]
 
       facet.offset = self.scalar_product(facet.normal, self.points[facet.vertex_indices[0]])
       self.hyper_planes += 1
@@ -381,7 +395,10 @@ class ConvexHull:
           mu = i
 
       if max_value == mp.zero:
-        raise ValueError( "Singular matrix 1" )
+        if self.allow_restart:
+          raise ValueError( "Singular matrix 1" )
+        else:
+          continue
 
       if k != mu:
         A.swap_row(k, mu)
@@ -415,7 +432,13 @@ class ConvexHull:
           b[i] = mp.zero
         else:
           # U(i,i) * x(i) != 0.0 but U(i,i) == 0.0 => no solution
-          raise ValueError( "Singular matrix 2" )
+          if self.allow_restart:
+            raise ValueError( "Singular matrix 2" )
+          b[i] = mp.one
+          for j in range(i + 1, n):
+            b[j] = mp.zero
+          
+
     # b now contains the solution x to Ax = b
 
   def initialize_outside_set(self, facets):
