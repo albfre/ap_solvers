@@ -10,7 +10,7 @@ from parameterized import parameterized
 
 class TestConvexHull(unittest.TestCase):
   @parameterized.expand(range(1, 5))
-  def _test_dimensions(self, dimension):
+  def test_dimensions(self, dimension):
     print("Computing convex hull in dimension %s" % dimension)
     mp.dps = 50
     num_points = 100
