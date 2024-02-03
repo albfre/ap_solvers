@@ -75,19 +75,18 @@ from mpmath import mp
 
 mp.dps = 50 # Set decimal precision
 
-# A cube
 points = [[0, 0, 0],
           [0, 0, 1], 
           [0, 1, 0], 
-          [0, 1, 1], 
           [1, 0, 0], 
-          [1, 0, 1], 
-          [1, 1, 0], 
-          [1, 1, 1]]
+          [0.2, 0.2, 0.2], 
+          [0.7, 0.7, 0.7], 
+          [0.3, 0.3, 0.3]]
 
 # Compute the convex hull
 ch = convex_hull.ConvexHull(points)
-print(ch.vertices)
+print(ch.simplices)
+print(ch.equations)
 ```
 
 ## Bunch-Kaufman solver

@@ -85,7 +85,7 @@ class ConvexHull:
     equations = []
     for facet in self.facets:
       simplices.append(facet.vertex_indices)
-      equations.append(facet.normal + [facet.offset])
+      equations.append(facet.normal + [-facet.offset])
       vis = simplices[-1]
       for i in range(self.dimension):
         vis[i] = self.original_points.index(self.unperturbed_points[vis[i]])
@@ -211,11 +211,15 @@ class ConvexHull:
 
     # Compute equations with original points
     self.allow_restart = False
+    perturbed_points = self.points
     self.points = self.unperturbed_points
     try:
       self.update_facet_normal_and_offset(origin, facets)
     except Exception as e:
       print("An exception occurred while calculating equations:", str(e))
+      # Compute equations with perturbed points
+      self.points = perturbed_points
+      self.update_facet_normal_and_offset(origin, facets)
 
   def prepare_new_facets(self, apex_index, horizon, facets, visible_facets):
     new_facets = []
@@ -352,8 +356,6 @@ class ConvexHull:
     assert(A.cols == self.dimension)
     for facet in facets:
       assert(len(facet.vertex_indices) == dimension)
-      b = facet.normal
-
       p1 = self.points[facet.vertex_indices[0]]
       for i in range(dimension - 1):
         data_i = A.data()[i]
