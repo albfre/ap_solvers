@@ -95,7 +95,7 @@ The Bunch-Kaufman solver is a matrix factorization solver for symmetric indefini
 
 Usage:
 ```python
-# Example code for using the quadratic programming solver
+# Example code for using the Bunch-Kaufman solver
 
 from ap_solvers import bunch_kaufman
 from mpmath import mp
