@@ -16,7 +16,7 @@ class Sqp:
     self.cs = cs if cs else []
     self.c_grads = c_grads if c_grads else []
     self.matrix = matrix
-    self.rho = self.matrix([mp.zero] * len(self.cs))
+    self.rho = self.matrix([mp.zero] * len(self.cs)) if self.cs else self.matrix(0)
     self.num_of_rho_norm_trend_switches = 0
     self.previous_rho_norm = 0
     self.tol = tol
@@ -32,7 +32,7 @@ class Sqp:
     hessian_diagonal = self._finite_difference_grad(self.f, x0, True)
 
     for i in range(n):
-      self.hessian_approximation[i, i] = hessian_diagonal[i]
+      self.hessian_approximation[i, i] = max(hessian_diagonal[i], mp.mpf(self.tol))
 
     x_k = self.matrix(x0)
     s_k = -self.evaluate_constraints(x0)
@@ -65,25 +65,25 @@ class Sqp:
     return x_k, self.f(x_k), self.evaluate_constraints(x_k), status
 
   def evaluate_constraints(self, x):
-    return self.matrix([c(x) for c in self.cs])
+    return self.matrix([c(x) for c in self.cs]) if self.cs else self.matrix(0)
 
   def _print(self, iteration, x, pi, alpha, minor_iterations):
     print_dps = 2
     obj = mp.nstr(self.f(x), print_dps)
     step = mp.nstr(alpha, print_dps)
-    rho = mp.nstr(sum(self.rho), print_dps)
-    c = mp.nstr(min(self.evaluate_constraints(x)), print_dps)
+    rho = mp.nstr(sum(self.rho) if self.rho.rows > 0 else mp.zero, print_dps)
+    c = mp.nstr(min(self.evaluate_constraints(x)) if self.cs else mp.zero, print_dps)
 
     self._compute_gradients(x)
-    dL = mp.nstr(max(abs(xi) for xi in (self._f_grad_k - self._jacobian_k.T * pi)), print_dps)
+    dL = mp.nstr(max(abs(xi) for xi in (self._f_grad_k - (self._jacobian_k.T * pi if self.cs else mp.zero))), print_dps)
     if iteration % 10 == 0:
-      print("Iter. \t Step \t Min. \t f(x) \t ||dL(x)|| \t" + "min c".rjust(8) + "\trho \t updated H")
+      print("\nIter. \t Step \t Min. \t f(x) \t ||dL(x)|| \t" + "min c".rjust(8) + "\trho \t updated H")
     n = 7
     print(f"{str(iteration).ljust(n)}\t{step.rjust(n)}\t{str(minor_iterations).ljust(n)}\t{obj.rjust(n)}\t{dL.rjust(8)}\t{c.rjust(8)}\t{rho.rjust(n)}\t{str(self.updated_hessian).ljust(n)}")
 
   def _check_convergence(self, x, pi):
     tau_x = self.tol * (mp.one + max(abs(xi) for xi in x))
-    tau_pi = self.tol * (mp.one + max(abs(p) for p in pi))
+    tau_pi = self.tol * (mp.one + max(abs(p) for p in pi)) if self.cs else self.tol
 
     if any(p < -tau_pi for p in pi): return False
     for i in range(len(self.cs)):
@@ -92,7 +92,7 @@ class Sqp:
       if ci * pi[i] > tau_pi: return False
 
     self._compute_gradients(x)
-    d = self._f_grad_k - self._jacobian_k.T * pi
+    d = self._f_grad_k - (self._jacobian_k.T * pi if self.cs else mp.zero)
     if any(abs(di) > tau_pi for di in d): return False
     return True
 
@@ -106,7 +106,7 @@ class Sqp:
     delta = x1 - x0
     deltaJ = self._jacobian_k - jacobian0
     deltaJT = deltaJ.T
-    y = self._f_grad_k - f_grad0 - deltaJT * pi1
+    y = self._f_grad_k - (f_grad0 + deltaJT * pi1 if self.cs else mp.zero)
 
     p = x_hat - x0 # search direction
     sigma = (alpha * (mp.one - self.eta) * p.T * self.hessian_approximation * p)[0]
@@ -118,8 +118,8 @@ class Sqp:
       # Second modification in SIAM Review paper on SNOPT
       beta = sigma - yTdelta
       v = deltaJ * delta
-      w = self.evaluate_constraints(x1) - self.evaluate_constraints(x0) - jacobian0 * delta
-      a = self.matrix([vi * wi for vi, wi in zip(v, w)])
+      w = self.evaluate_constraints(x1) - self.evaluate_constraints(x0) - jacobian0 * delta if self.cs else self.matrix(0)
+      a = self.matrix([vi * wi for vi, wi in zip(v, w)]) if self.cs else [mp.zero]
       if (beta > mp.zero and max(a) > mp.zero) or (beta < mp.zero and min(a) < mp.zero):
         omega = self._solve_identity_hessian_single_constraint_positive_problem(a, beta)
         if (omega.T * omega)[0] < 1e6:
@@ -179,8 +179,8 @@ class Sqp:
     c = self._f_grad_k - Q * x_k
     A_eq = []
     b_eq = []
-    A_ineq = self._jacobian_k
-    b_ineq = self._jacobian_k * x_k - self.evaluate_constraints(x_k)
+    A_ineq = self._jacobian_k if self.cs else []
+    b_ineq = self._jacobian_k * x_k - self.evaluate_constraints(x_k) if self.cs else []
 
     x, s, pi, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, self.matrix, self.minor_tol, 100, False)
     assert res < self.minor_tol, "Res = %s, tol = %s" % (res, self.minor_tol)
@@ -223,6 +223,9 @@ class Sqp:
 
     (c - s).^2 rho = g' p_x + (pi - p_pi)' (c - s) + 0.5 p_x' H p_x
     """
+    if not self.cs:
+      return
+
     self._compute_gradients(x_k)
     cs = self.evaluate_constraints(x_k)
     p_x = x_hat - x_k
@@ -253,13 +256,16 @@ class Sqp:
   def _line_search(self, x_k, s_k, pi_k, x_hat, s_hat, pi_hat):
     self._update_rho(x_k, s_k, pi_k, x_hat, s_hat, pi_hat)
     mu = mp.mpf('1e-4')
-    p_x, p_s, p_pi = x_hat - x_k, s_hat - s_k, pi_hat - pi_k
+    p_x, p_s, p_pi = x_hat - x_k, s_hat - s_k if self.cs else self.matrix(0), pi_hat - pi_k if self.cs else self.matrix(0)
 
     def trial_point(alpha):
-      return x_k + alpha * p_x, s_k + alpha * p_s, pi_k + alpha * p_pi
+      return x_k + alpha * p_x, s_k + alpha * p_s if self.cs else self.matrix(0), pi_k + alpha * p_pi if self.cs else self.matrix(0)
       
     def merit_function(alpha):
       x, s, pi = trial_point(alpha)
+      if not self.cs:
+        return self.f(x)
+
       cs = self.evaluate_constraints(x)
       phi = self.f(x) - pi.T * (cs - s)
       for j in range(len(cs)):
@@ -271,11 +277,14 @@ class Sqp:
       #phi'(a) = g(x + a p_x)' p_x - p_pi' (c(x + a p_x) - s - a p_s) - (pi + a p_pi)' (J(x + a p_x) p_x - p_s) + sum(rho_i (c_i(x + a p_x) - s_i - a p_s_i) (J(x + a p_x) p_x - p_s_i)
       x, s, pi = trial_point(alpha)
       self._compute_gradients(x)
-      cs = self.evaluate_constraints(x)
-      jacPxMinusPs = self._jacobian_k * p_x - p_s
-      v = (self._f_grad_k.T * p_x - p_pi.T * (cs - s) - pi.T * jacPxMinusPs)[0]
-      for j in range(len(cs)):
-        v += self.rho[j] * (cs[j] - s[j]) * jacPxMinusPs[j]
+      v = (self._f_grad_k.T * p_x)[0]
+
+      if self.cs:
+        cs = self.evaluate_constraints(x)
+        jacPxMinusPs = self._jacobian_k * p_x - p_s
+        v -= (p_pi.T * (cs - s) + pi.T * jacPxMinusPs)[0]
+        for j in range(len(cs)):
+          v += self.rho[j] * (cs[j] - s[j]) * jacPxMinusPs[j]
       return v
       
     self._compute_gradients(x_k)
@@ -288,9 +297,9 @@ class Sqp:
       m_alpha = merit_function(alpha)
       return m_alpha - m_0 - mu * alpha * d_m_0
 
-    cs_k = self.evaluate_constraints(x_k)
-    tau_v = mp.mpf('10')
-    b = tau_v * self.matrix([max(mp.one, c) for c in cs_k])
+    #cs_k = self.evaluate_constraints(x_k)
+    #tau_v = mp.mpf('10')
+    #b = tau_v * self.matrix([max(mp.one, c) for c in cs_k])
 
     alpha = mp.one
     eta = 0.4
@@ -305,9 +314,10 @@ class Sqp:
         print(mp.nstr(alpha, print_dps))
         print(mp.nstr(-eta * d_m_0, print_dps))
         print(mp.nstr(abs(merit_function_derivative(alpha)), print_dps))
+        print(mp.nstr(psi(alpha), print_dps))
       if psi(alpha) < mp.zero: # and abs(merit_function_derivative(alpha)) <= eta * abs(d_m_0):
         cs = self.evaluate_constraints(x)
-        s = self.matrix([si if rho_i == mp.zero else max(ci + pi_i / rho_i, mp.zero) for si, ci, pi_i, rho_i in zip(s, cs, pi, self.rho)])
+        s = self.matrix([si if rho_i == mp.zero else max(ci + pi_i / rho_i, mp.zero) for si, ci, pi_i, rho_i in zip(s, cs, pi, self.rho)]) if self.cs else self.matrix(0)
         return x, s, pi, alpha
 
       alpha *= 0.5

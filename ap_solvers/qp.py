@@ -128,7 +128,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     # Use the predictor-corrector method
 
     # Compute affine scaling step
-    dx_aff, ds_aff, dy_aff, dz_aff = compute_search_direction(s, z, L, ipiv, r_grad, r_y, r_z, r_s)
+    _, ds_aff, _, dz_aff = compute_search_direction(s, z, L, ipiv, r_grad, r_y, r_z, r_s)
     alpha_aff_p = get_max_step(s, ds_aff)
     alpha_aff_d = get_max_step(z, dz_aff)
     s_aff = matrix(s) + alpha_aff_p * ds_aff

@@ -35,8 +35,8 @@ def overwriting_symmetric_indefinite_factorization(A):
         kp = k
       else:
         # jmax is the column-index of the largest off-diagonal element in row imax, and rowmax is its absolute value
-        j_max1, row_max1 = max_in_row_or_column(k, i_max, i_max, False)
-        j_max2, row_max2 = max_in_row_or_column(i_max + 1, n, i_max, True)
+        _, row_max1 = max_in_row_or_column(k, i_max, i_max, False)
+        _, row_max2 = max_in_row_or_column(i_max + 1, n, i_max, True)
         row_max = max(row_max1, row_max2)
         if absakk * row_max >= alpha * col_max * col_max:
           kp = k # no interchange, use 1-by-1 pivot block
