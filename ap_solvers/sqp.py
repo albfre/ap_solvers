@@ -117,8 +117,6 @@ class Sqp:
 
     yTdelta = (y.T * delta)[0]
     perform_update = yTdelta >= sigma
-    print(yTdelta)
-    print(sigma)
 
     if not perform_update:
       # Second modification in SIAM Review paper on SNOPT
