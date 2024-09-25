@@ -2,7 +2,7 @@ from ap_solvers import dense_mp_matrix, qp
 from mpmath import mp
 
 class Sqp:
-  def __init__(self, f, f_grad, cs, c_grads, tol = mp.mpf('1e-20'), matrix = dense_mp_matrix.matrix, print_stats = True):
+  def __init__(self, f, f_grad, cs, c_grads, tol = mp.mpf('1e-20'), hessian_reset_iter = 50, matrix = dense_mp_matrix.matrix, print_stats = True):
     """
     Initialize the Sqp object with a set of points.
 
@@ -25,23 +25,19 @@ class Sqp:
     self.eta = mp.mpf('0.99')
     self.x_used_for_gradient_computation = None
     self.updated_hessian = False
+    self.hessian_reset_iter = hessian_reset_iter
 
   def solve(self, x0, max_iter = 100):
-    n = len(x0)
-    self.hessian_approximation = self.matrix(n, n)
-    hessian_diagonal = self._finite_difference_grad(self.f, x0, True)
-
-    for i in range(n):
-      self.hessian_approximation[i, i] = max(hessian_diagonal[i], mp.mpf(self.tol))
-
     x_k = self.matrix(x0)
     s_k = -self.evaluate_constraints(x0)
     pi_k = self.matrix(len(self.cs), 1)
     status = ""
 
     for iteration in range(max_iter):
+      if iteration % self.hessian_reset_iter == 0:
+        self.reset_hessian(x_k)
       x_hat, s_hat, pi_hat, minor_iterations = self._solve_qp(x_k)
-      x_prev, s_prev, pi_prev = x_k, s_k, pi_k
+      x_prev, _, _ = x_k, s_k, pi_k
       try:
         x_k, s_k, pi_k, alpha = self._line_search(x_k, s_k, pi_k, x_hat, s_hat, pi_hat)
       except ValueError as e:
@@ -63,6 +59,14 @@ class Sqp:
       status = "Maximum number of iterations"
 
     return x_k, self.f(x_k), self.evaluate_constraints(x_k), status
+
+  def reset_hessian(self, x):
+    n = len(x)
+    self.hessian_approximation = self.matrix(n, n)
+    hessian_diagonal = self._finite_difference_grad(self.f, x, True)
+
+    for i in range(n):
+      self.hessian_approximation[i, i] = max(hessian_diagonal[i], mp.mpf(self.tol))
 
   def evaluate_constraints(self, x):
     return self.matrix([c(x) for c in self.cs]) if self.cs else self.matrix(0)
@@ -106,13 +110,15 @@ class Sqp:
     delta = x1 - x0
     deltaJ = self._jacobian_k - jacobian0
     deltaJT = deltaJ.T
-    y = self._f_grad_k - (f_grad0 + deltaJT * pi1 if self.cs else mp.zero)
+    y = self._f_grad_k - f_grad0 - (deltaJT * pi1 if self.cs else mp.zero)
 
     p = x_hat - x0 # search direction
     sigma = (alpha * (mp.one - self.eta) * p.T * self.hessian_approximation * p)[0]
 
     yTdelta = (y.T * delta)[0]
     perform_update = yTdelta >= sigma
+    print(yTdelta)
+    print(sigma)
 
     if not perform_update:
       # Second modification in SIAM Review paper on SNOPT

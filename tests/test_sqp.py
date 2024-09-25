@@ -46,11 +46,12 @@ class TestSQP(unittest.TestCase):
   def test_unconstrained_sqp(self, matrix):
     mp.dps = 100
 
-    f = lambda x: (x[0] - 1)**4 + abs(x[1] - 0.25)**5 # (x1-1)^6 + (x2-0.25)^4
-    tol = mp.mpf('1e-20')
-    opt = sqp.Sqp(f, None, [], None, tol=tol, matrix=matrix, print_stats=True)
-    x0 = [1, 1]
-    self._solve_and_print(opt, x0, 100)
+    n = 6
+    f = lambda x: abs(x[0] - 1)**n + abs(x[1] - 0.25)**n # (x1-1)^6 + (x2-0.25)^4
+    tol = mp.mpf('1e-30')
+    opt = sqp.Sqp(f, None, [], None, tol=tol, hessian_reset_iter=50, matrix=matrix, print_stats=True)
+    x0 = [10, 10]
+    self._solve_and_print(opt, x0, 1000)
 
   @parameterized.expand([dense_mp_matrix.matrix])
   def test_larger_sqp(self, matrix):
