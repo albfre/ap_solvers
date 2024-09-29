@@ -38,7 +38,7 @@ class ConvexHull:
     self.original_points = [tuple(mp.mpf(x) for x in p) for p in points]
     self.unperturbed_points = [
         point for i, point in enumerate(self.original_points)
-        if not any(self.point_distance(point, earlier_point) < mp.mpf(f'1e-{mp.dps}') for earlier_point in self.original_points[:i])
+        if not any(self.point_distance(point, earlier_point) < 10 * mp.mpf(f'1e-{mp.dps}') for earlier_point in self.original_points[:i])
     ]
     self.points = self.unperturbed_points
     num_points = len(points)

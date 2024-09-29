@@ -32,6 +32,7 @@ class Sqp:
     s_k = -self.evaluate_constraints(x0)
     pi_k = self.matrix(len(self.cs), 1)
     status = ""
+    alpha = 0.0
 
     for iteration in range(max_iter):
       if iteration % self.hessian_reset_iter == 0:
@@ -42,7 +43,6 @@ class Sqp:
         x_k, s_k, pi_k, alpha = self._line_search(x_k, s_k, pi_k, x_hat, s_hat, pi_hat)
       except ValueError as e:
         status = "Current point could not be improved"
-        alpha = 0.0
         break
       finally:
         if self.print_stats:
