@@ -89,7 +89,7 @@ class Sqp:
     tau_x = self.tol * (mp.one + max(abs(xi) for xi in x))
     tau_pi = self.tol * (mp.one + max(abs(p) for p in pi)) if self.cs else self.tol
 
-    if any(p < -tau_pi for p in pi): return False
+    if self.cs and any(p < -tau_pi for p in pi): return False
     for i in range(len(self.cs)):
       ci = self.cs[i](x)
       if ci < -tau_x: return False

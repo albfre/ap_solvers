@@ -70,6 +70,7 @@ class matrix:
       raise TypeError("Invalid index format: " + str(index) + " " + str(type(index)))
 
   def _verify_size(self, other):
+
     if (self.cols != other.cols or self.rows != other.rows):
       raise ValueError("Dimensions do not match")
 

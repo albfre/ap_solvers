@@ -36,7 +36,10 @@ class ConvexHull:
       raise ValueError("Points must not be empty")
     self.allow_restart = True
     self.original_points = [tuple(mp.mpf(x) for x in p) for p in points]
-    self.unperturbed_points = list(set(self.original_points))
+    self.unperturbed_points = [
+        point for i, point in enumerate(self.original_points)
+        if not any(self.point_distance(point, earlier_point) < mp.mpf(f'1e-{mp.dps}') for earlier_point in self.original_points[:i])
+    ]
     self.points = self.unperturbed_points
     num_points = len(points)
     self.dimension = len(points[0])
@@ -78,7 +81,7 @@ class ConvexHull:
       factor = next(x for x in range(20, -1, -1) if x * self.max_perturbation_iter < mp.dps)
       perturbation = 0.5 * self.shortest_distance * 10 ** -(factor * (self.max_perturbation_iter - self.perturbation_iter))
       print("Perturbing with size: %s" % perturbation)
-      self.points = [tuple([coord + random.uniform(-perturbation, perturbation) for coord in p]) for p in self.unperturbed_points]
+      self.points = [tuple([coord + mp.mpf(random.uniform(-1, 1)) * perturbation) for coord in p]) for p in self.unperturbed_points]
       return self.compute()
 
     simplices = []
