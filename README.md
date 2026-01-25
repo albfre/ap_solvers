@@ -4,6 +4,7 @@ Arbitrary precision solvers using mpmath. It provides the following solvers:
 
 * Sequential quadratic programming (SQP) solver
 * Quadratic programming (QP) solver
+* Nelder-Mead solver
 * Convex hull solver
 * Bunch-Kaufman solver
 
@@ -60,6 +61,38 @@ b_ineq = mp.matrix(n, 1)
 x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix)
 
 print(str(f))
+```
+
+## Nelder-Mead solver
+
+The Nelder-Mead solver is a derivative-free optimization algorithm that can minimize unconstrained scalar functions. It uses a simplex-based approach and does not require gradient information, making it suitable for non-smooth or noisy functions.
+
+Usage:
+```python
+# Example code for using the Nelder-Mead solver
+
+from ap_solvers import nelder_mead
+from mpmath import mp
+
+mp.dps = 50 # Set decimal precision
+
+# Define the objective function (e.g., Rosenbrock function)
+f = lambda x: (1 - x[0])**2 + 100 * (x[1] - x[0]**2)**2
+
+# Starting point
+x_start = [mp.mpf('0.0'), mp.mpf('0.0')]
+
+# Optimize with verbose output
+x, f_val, status = nelder_mead.nelder_mead(
+    f, x_start, 
+    max_iter=5000, 
+    no_improve_thr=mp.mpf('1e-40'),
+    verbose=True
+)
+
+print(f"Optimal point: {x}")
+print(f"Optimal value: {f_val}")
+print(f"Status: {status}")
 ```
 
 ## Convex hull solver

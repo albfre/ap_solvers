@@ -81,7 +81,7 @@ class ConvexHull:
       factor = next(x for x in range(20, -1, -1) if x * self.max_perturbation_iter < mp.dps)
       perturbation = 0.5 * self.shortest_distance * 10 ** -(factor * (self.max_perturbation_iter - self.perturbation_iter))
       print("Perturbing with size: %s" % perturbation)
-      self.points = [tuple([coord + mp.mpf(random.uniform(-1, 1)) * perturbation) for coord in p]) for p in self.unperturbed_points]
+      self.points = [tuple([coord + mp.mpf(random.uniform(-1, 1)) * perturbation for coord in p]) for p in self.unperturbed_points]
       return self.compute()
 
     simplices = []
