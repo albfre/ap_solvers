@@ -25,11 +25,12 @@ mp.dps = 50 # Set decimal precision
 f = lambda x: (x[0] - 1)**2 + (x[1] - 0.25)**2 # (x1-1)^2 + (x2-0.25)^2
 c = lambda x: -(x[0] ** 2 + x[1] ** 2 - mp.one) # x1^2 + x2^2 <= 1
 
+x0 = dense_mp_matrix.matrix([mp.mpf('0.5'), mp.mpf('0.5')])
 tol = mp.mpf('1e-20')
-opt = sqp.Sqp(f, None, [c], None, tol=tol, matrix=matrix, print_stats=True)
-x, f, cs, status = opt.solve(x0, max_iter)
+opt = sqp.Sqp(f, None, [c], None, tol=tol, matrix=dense_mp_matrix.matrix, print_stats=True)
+x, f_val, cs, status = opt.solve(x0, max_iter=100)
 
-print(str(f))
+print(str(f_val))
 ```
 
 ## QP solver
@@ -47,6 +48,7 @@ from mpmath import mp
 
 mp.dps = 50 # Set decimal precision
 
+n = 2
 Q = dense_mp_matrix.matrix([[809 ** 2, 809 * 359], [809 * 359, 359 **2]]) / 1300 ** 2
 c = -dense_mp_matrix.matrix([809, 359]) / 1300
 
@@ -58,9 +60,9 @@ b_eq = mp.ones(1, 1)
 A_ineq = mp.diag([1, 1])
 b_ineq = mp.matrix(n, 1)
 
-x, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix)
+result = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, dense_mp_matrix.matrix)
 
-print(str(f))
+print(str(result.objective))
 ```
 
 ## Nelder-Mead solver

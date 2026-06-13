@@ -1,6 +1,22 @@
 from mpmath import mp
 
+
 class matrix:
+  """Dense matrix backed by nested Python lists of mpmath floats.
+
+  Provides basic linear algebra operations (addition, subtraction,
+  multiplication, transposition) with arbitrary-precision arithmetic
+  via mpmath.
+
+  Args:
+    *args: One of the following:
+      - A nested list/tuple of numbers (creates a matrix from rows).
+      - A flat list/tuple of numbers (creates a column vector).
+      - Two ints (rows, cols) to create a zero matrix.
+      - A single int n to create an n x n zero matrix.
+      - An existing ``mp.matrix`` or ``matrix`` to copy from.
+  """
+
   def __init__(self, *args):
     if isinstance(args[0], (list, tuple)):
       if args[0]:
@@ -36,7 +52,7 @@ class matrix:
       if isinstance(A, mp.matrix):
         self.__data = [[A[i, j] for j in range(self.cols)] for i in range(self.rows)]
       else:
-        self.__data = A.__data.copy()
+        self.__data = [row[:] for row in A.__data]
     else:
       raise TypeError("Could not interpret given arguments")
 
@@ -142,6 +158,7 @@ class matrix:
       return self.rows # do like numpy
 
   def transpose(self):
+    """Return the transpose of this matrix."""
     result = matrix(self.cols, self.rows)
     for i in range(self.rows):
       for j in range(self.cols):
@@ -154,7 +171,12 @@ class matrix:
     return self.__data
 
   def copy(self):
-    return matrix(self.__data)
+    """Return a deep copy of this matrix."""
+    result = matrix.__new__(matrix)
+    result.rows = self.rows
+    result.cols = self.cols
+    result._matrix__data = [row[:] for row in self.__data]
+    return result
 
   def swap_row(self, i, j):
     [self.__data[i], self.__data[j]] = [self.__data[j], self.__data[i]]

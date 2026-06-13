@@ -1,11 +1,64 @@
+import logging
+from typing import NamedTuple
+
 from ap_solvers import bunch_kaufman
 from ap_solvers import dense_mp_matrix
 from mpmath import mp
 
+logger = logging.getLogger(__name__)
+
+
+class QPResult(NamedTuple):
+  """Result of a quadratic programming solve.
+
+  Attributes:
+    x: Optimal primal variables.
+    s: Slack variables for inequality constraints.
+    z: Dual variables (multipliers) for inequality constraints.
+    objective: Optimal objective value.
+    residual: Norm of the KKT residual at the solution.
+    gap: Duality gap at the solution.
+    iterations: Number of interior-point iterations performed.
+  """
+  x: object
+  s: object
+  z: object
+  objective: object
+  residual: object
+  gap: object
+  iterations: int
+
+
 def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-20'), max_iter=100, print_stats=True):
-  """ minimize 0.5 x' H x + c' x
-      st    Aeq x = beq
-            Aineq x >= bineq
+  """Solve a convex quadratic program using a primal-dual interior point method.
+
+  Minimizes::
+
+      0.5 * x' H x + c' x
+
+  subject to::
+
+      A_eq   x  = b_eq
+      A_ineq x >= b_ineq
+
+  Args:
+    H: Symmetric positive semidefinite matrix (n x n).
+    c: Linear cost vector (n x 1).
+    A_eq: Equality constraint matrix (m_eq x n), or empty.
+    b_eq: Equality constraint RHS (m_eq x 1), or empty.
+    A_ineq: Inequality constraint matrix (m_ineq x n), or empty.
+    b_ineq: Inequality constraint RHS (m_ineq x 1), or empty.
+    matrix: Matrix constructor (default: mp.matrix).
+    tol: Convergence tolerance for residual and gap.
+    max_iter: Maximum number of interior-point iterations.
+    print_stats: Whether to print iteration statistics.
+
+  Returns:
+    QPResult: Named tuple with fields (x, s, z, objective, residual, gap, iterations).
+
+  Raises:
+    ValueError: If matrix dimensions are incompatible.
+    RuntimeError: If the internal linear system factorization fails.
   """
   H = matrix(H)
   c = matrix(c)
@@ -18,11 +71,16 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
   m_ineq = A_ineq.rows
   m_eq = A_eq.rows
 
-  assert(H.rows == H.cols)
-  assert(not A_ineq or A_ineq.cols == n)
-  assert(not A_eq or A_eq.cols == n)
-  assert b_ineq.rows == m_ineq, "b_eq.rows = %s, m_eq = %s" % (b_ineq.rows, m_ineq)
-  assert b_eq.rows == m_eq, "b_eq.rows = %s, m_eq = %s" % (b_eq.rows, m_eq)
+  if H.rows != H.cols:
+    raise ValueError(f"H must be square, got {H.rows}x{H.cols}")
+  if A_ineq and A_ineq.cols != n:
+    raise ValueError(f"A_ineq has {A_ineq.cols} columns, expected {n}")
+  if A_eq and A_eq.cols != n:
+    raise ValueError(f"A_eq has {A_eq.cols} columns, expected {n}")
+  if b_ineq.rows != m_ineq:
+    raise ValueError(f"b_ineq has {b_ineq.rows} rows, expected {m_ineq}")
+  if b_eq.rows != m_eq:
+    raise ValueError(f"b_eq has {b_eq.rows} rows, expected {m_eq}")
 
   A_ineq_T = A_ineq.T
   A_eq_T = A_eq.T
@@ -115,7 +173,7 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     res, gap = get_residual_and_gap(s, z, r_grad, r_y, r_z)
     if print_stats:
       print_dps = 10
-      print('%s. f: %s, res: %s, gap: %s' % (iteration, mp.nstr(f, print_dps), mp.nstr(res, print_dps), mp.nstr(gap, print_dps)))
+      logger.info('%s. f: %s, res: %s, gap: %s', iteration, mp.nstr(f, print_dps), mp.nstr(res, print_dps), mp.nstr(gap, print_dps))
     if res <= tol and gap <= tol:
       break
 
@@ -123,7 +181,8 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
     if len(s) > 0:
       update_matrix(s, z)
     L, ipiv, info = bunch_kaufman.overwriting_symmetric_indefinite_factorization(PDS.copy())
-    assert info == 0, "info: %s" % info
+    if info != 0:
+      raise RuntimeError(f"Symmetric indefinite factorization failed with info={info}")
 
     # Use the predictor-corrector method
 
@@ -154,17 +213,19 @@ def solve_qp(H, c, A_eq, b_eq, A_ineq, b_ineq, matrix=mp.matrix, tol=mp.mpf('1e-
   # Return the solution and objective value
   f, r_grad, r_y, r_z, r_s = eval_func(x, s, y, z, 0)
   res, gap = get_residual_and_gap(s, z, r_grad, r_y, r_z)
-  return x, s, z, f, res, gap, iteration
+  return QPResult(x=x, s=s, z=z, objective=f, residual=res, gap=gap, iterations=iteration)
 
 # Helper functions for linear algebra operations
 
 def diag(x, matrix):
+  """Create a diagonal matrix from a vector."""
   M = matrix(len(x), len(x))
   for i, xi in enumerate(x):
     M[i, i] = xi
   return M
 
 def elementwise_product(x, y):
+  """Compute the element-wise (Hadamard) product of two matrices."""
   r = x.copy()
   for i in range(x.rows):
     for j in range(x.cols):
@@ -172,6 +233,7 @@ def elementwise_product(x, y):
   return r
 
 def elementwise_division(x, y):
+  """Compute the element-wise division of two matrices."""
   r = x.copy()
   for i in range(x.rows):
     for j in range(x.cols):
@@ -179,19 +241,26 @@ def elementwise_division(x, y):
   return r
 
 def set_submatrix(M, X, start_i, start_j):
+  """Set a submatrix of M starting at (start_i, start_j) from X."""
   m = X.rows
   n = X.cols
-  assert(M.rows >= m + start_i)
-  assert(M.cols >= n + start_j)
+  if M.rows < m + start_i:
+    raise ValueError(f"M has {M.rows} rows, need at least {m + start_i}")
+  if M.cols < n + start_j:
+    raise ValueError(f"M has {M.cols} cols, need at least {n + start_j}")
   for i in range(m):
     si = i + start_i
     for j in range(n):
       M[si, j + start_j] = X[i, j]
 
 def set_subdiagonal(M, d, start_i, start_j):
-  assert(d.cols == 1)
+  """Set a diagonal block of M starting at (start_i, start_j) from vector d."""
+  if d.cols != 1:
+    raise ValueError(f"d must be a column vector, got {d.cols} columns")
   m = d.rows
-  assert(M.rows >= m + start_i)
-  assert(M.cols >= m + start_j)
+  if M.rows < m + start_i:
+    raise ValueError(f"M has {M.rows} rows, need at least {m + start_i}")
+  if M.cols < m + start_j:
+    raise ValueError(f"M has {M.cols} cols, need at least {m + start_j}")
   for i in range(m):
     M[i + start_i, i + start_j] = d[i];

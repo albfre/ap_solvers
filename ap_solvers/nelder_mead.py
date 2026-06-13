@@ -1,8 +1,11 @@
 import copy
+import logging
 from mpmath import mp
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Callable
 from collections import OrderedDict
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -92,8 +95,8 @@ def _print_iteration_info(iteration: int, best_value, best_point: List,
         point_str += ", ..."
     point_str += "]"
     
-    print(f"Iteration {iteration:4d} | Best value: {float(best_value):12.6e} | "
-          f"Best point: {point_str} | No improve: {no_improvement_count}")
+    logger.info("Iteration %4d | Best value: %12.6e | Best point: %s | No improve: %d",
+                iteration, float(best_value), point_str, no_improvement_count)
 
 
 def nelder_mead(f, x_start,
@@ -162,16 +165,10 @@ def nelder_mead(f, x_start,
     )
     
     if verbose:
-        print("=" * 80)
-        print("Starting Nelder-Mead Optimization")
-        print(f"Dimension: {dim}, Max iterations: {max_iter if max_iter else 'unlimited'}")
-        print("=" * 80)
-
-    if verbose:
-        print("=" * 80)
-        print("Starting Nelder-Mead Optimization")
-        print(f"Dimension: {dim}, Max iterations: {max_iter if max_iter else 'unlimited'}")
-        print("=" * 80)
+        logger.info("=" * 80)
+        logger.info("Starting Nelder-Mead Optimization")
+        logger.info("Dimension: %d, Max iterations: %s", dim, max_iter if max_iter else 'unlimited')
+        logger.info("=" * 80)
 
     # Main optimization loop
     while True:
@@ -183,11 +180,11 @@ def nelder_mead(f, x_start,
         converged, status = _check_convergence(state, no_improve_thr, no_improv_break, max_iter)
         if converged:
             if verbose:
-                print("=" * 80)
-                print(f"Optimization terminated: {status}")
-                print(f"Total iterations: {state.iteration}")
-                print(f"Final best value: {float(best_value):.12e}")
-                print("=" * 80)
+                logger.info("=" * 80)
+                logger.info("Optimization terminated: %s", status)
+                logger.info("Total iterations: %d", state.iteration)
+                logger.info("Final best value: %.12e", float(best_value))
+                logger.info("=" * 80)
             return state.simplex[0][0], state.simplex[0][1], status
         
         # Update iteration counter

@@ -1,0 +1,32 @@
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing/profiling
+.pytest_cache/
+.coverage
+htmlcov/
+profile
+profile.txt
+
+# OS
+.DS_Store
+Thumbs.db

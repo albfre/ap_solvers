@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ap_solvers"
+version = "0.1.0"
+description = "Arbitrary precision solvers using mpmath"
+readme = "README.md"
+license = "BSD-3-Clause"
+requires-python = ">=3.9"
+authors = [
+    {name = "Albin Fredriksson", email = "albin.fredriksson@gmail.com"},
+]
+dependencies = [
+    "mpmath>=1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/albfre/ap_solvers"
+Repository = "https://github.com/albfre/ap_solvers"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "scipy",
+    "numpy",
+    "parameterized",
+]
+
+[tool.setuptools.packages.find]
+include = ["ap_solvers*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

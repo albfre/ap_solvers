@@ -1,5 +1,9 @@
+import logging
+
 from ap_solvers import dense_mp_matrix, qp
 from mpmath import mp
+
+logger = logging.getLogger(__name__)
 
 class Sqp:
   def __init__(self, f, f_grad, cs, c_grads, tol = mp.mpf('1e-20'), hessian_reset_iter = 50, matrix = dense_mp_matrix.matrix, print_stats = True):
@@ -81,9 +85,9 @@ class Sqp:
     self._compute_gradients(x)
     dL = mp.nstr(max(abs(xi) for xi in (self._f_grad_k - (self._jacobian_k.T * pi if self.cs else mp.zero))), print_dps)
     if iteration % 10 == 0:
-      print("\nIter. \t Step \t Min. \t f(x) \t ||dL(x)|| \t" + "min c".rjust(8) + "\trho \t updated H")
+      logger.info("\nIter. \t Step \t Min. \t f(x) \t ||dL(x)|| \t" + "min c".rjust(8) + "\trho \t updated H")
     n = 7
-    print(f"{str(iteration).ljust(n)}\t{step.rjust(n)}\t{str(minor_iterations).ljust(n)}\t{obj.rjust(n)}\t{dL.rjust(8)}\t{c.rjust(8)}\t{rho.rjust(n)}\t{str(self.updated_hessian).ljust(n)}")
+    logger.info(f"{str(iteration).ljust(n)}\t{step.rjust(n)}\t{str(minor_iterations).ljust(n)}\t{obj.rjust(n)}\t{dL.rjust(8)}\t{c.rjust(8)}\t{rho.rjust(n)}\t{str(self.updated_hessian).ljust(n)}")
 
   def _check_convergence(self, x, pi):
     tau_x = self.tol * (mp.one + max(abs(xi) for xi in x))
@@ -187,8 +191,10 @@ class Sqp:
     b_ineq = self._jacobian_k * x_k - self.evaluate_constraints(x_k) if self.cs else []
 
     x, s, pi, f, res, gap, iteration = qp.solve_qp(Q, c, A_eq, b_eq, A_ineq, b_ineq, self.matrix, self.minor_tol, 100, False)
-    assert res < self.minor_tol, "Res = %s, tol = %s" % (res, self.minor_tol)
-    assert gap < self.minor_tol, "Gap = %s, tol = %s" % (gap, self.minor_tol)
+    if res >= self.minor_tol:
+      raise RuntimeError(f"QP subproblem residual {res} exceeds tolerance {self.minor_tol}")
+    if gap >= self.minor_tol:
+      raise RuntimeError(f"QP subproblem gap {gap} exceeds tolerance {self.minor_tol}")
     return self.matrix(x), self.matrix(s), self.matrix(pi), iteration
 
   def _solve_identity_hessian_single_constraint_positive_problem(self, a, b):
@@ -243,19 +249,16 @@ class Sqp:
 
     if rhs > mp.zero and max(lhs) > mp.zero:
       rho_star = self._solve_identity_hessian_single_constraint_positive_problem(lhs, rhs)
-      if True:
-        delta_rho = 2 ** self.num_of_rho_norm_trend_switches
-        for i in range(len(self.rho)):
-          rho_hat = self.rho[i] if self.rho[i] <= 4 * (rho_star[i] + delta_rho) else mp.sqrt(self.rho[i] * (rho_star[i] + delta_rho))
-          self.rho[i] = max(rho_hat, rho_star[i])
+      delta_rho = 2 ** self.num_of_rho_norm_trend_switches
+      for i in range(len(self.rho)):
+        rho_hat = self.rho[i] if self.rho[i] <= 4 * (rho_star[i] + delta_rho) else mp.sqrt(self.rho[i] * (rho_star[i] + delta_rho))
+        self.rho[i] = max(rho_hat, rho_star[i])
 
-        rho_norm = (self.rho.T * self.rho)[0]
-        is_rho_norm_increasing = self.num_of_rho_norm_trend_switches % 2 == 0
-        if (rho_norm < self.previous_rho_norm and is_rho_norm_increasing) or (rho_norm > self.previous_rho_norm and not is_rho_norm_increasing):
-          self.num_of_rho_norm_trend_switches += 1
-        self.previous_rho_norm = rho_norm
-      else:
-        self.rho = rho_star
+      rho_norm = (self.rho.T * self.rho)[0]
+      is_rho_norm_increasing = self.num_of_rho_norm_trend_switches % 2 == 0
+      if (rho_norm < self.previous_rho_norm and is_rho_norm_increasing) or (rho_norm > self.previous_rho_norm and not is_rho_norm_increasing):
+        self.num_of_rho_norm_trend_switches += 1
+      self.previous_rho_norm = rho_norm
 
   def _line_search(self, x_k, s_k, pi_k, x_hat, s_hat, pi_hat):
     self._update_rho(x_k, s_k, pi_k, x_hat, s_hat, pi_hat)
@@ -313,13 +316,7 @@ class Sqp:
       #cs = self.evaluate_constraints(x)
       #bounded_constraint_violations = all(c >= -bi for c, bi in zip(cs, b))
 
-      if False:
-        print_dps = 10
-        print(mp.nstr(alpha, print_dps))
-        print(mp.nstr(-eta * d_m_0, print_dps))
-        print(mp.nstr(abs(merit_function_derivative(alpha)), print_dps))
-        print(mp.nstr(psi(alpha), print_dps))
-      if psi(alpha) < mp.zero: # and abs(merit_function_derivative(alpha)) <= eta * abs(d_m_0):
+      if psi(alpha) < mp.zero:
         cs = self.evaluate_constraints(x)
         s = self.matrix([si if rho_i == mp.zero else max(ci + pi_i / rho_i, mp.zero) for si, ci, pi_i, rho_i in zip(s, cs, pi, self.rho)]) if self.cs else self.matrix(0)
         return x, s, pi, alpha

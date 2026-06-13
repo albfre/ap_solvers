@@ -1,7 +1,27 @@
 from mpmath import mp
 
+
 def overwriting_symmetric_indefinite_factorization(A):
-  assert(A.rows == A.cols)
+  """Compute the Bunch-Kaufman factorization of a symmetric indefinite matrix.
+
+  Factorizes A as A = L * D * L^T, where L is lower triangular with unit
+  diagonal and D is block diagonal with 1x1 and 2x2 blocks. The factorization
+  is performed in-place, overwriting A.
+
+  This implements the Bunch-Kaufman diagonal pivoting method (lower triangular).
+
+  Args:
+    A: Symmetric matrix (n x n) to factorize. Will be overwritten.
+
+  Returns:
+    tuple: (L, ipiv, info) where:
+      - L: The factored matrix (lower triangle stores L, diagonal/subdiagonal stores D).
+      - ipiv: Pivot indices. ipiv[k] >= 0 means a 1x1 pivot at position k;
+              ipiv[k] < 0 means a 2x2 pivot at positions k and k+1.
+      - info: 0 if successful, k if D[k,k] is exactly zero.
+  """
+  if A.rows != A.cols:
+    raise ValueError(f"Matrix must be square, got {A.rows}x{A.cols}")
   n = A.rows
   alpha = (mp.one + mp.sqrt(mp.mpf(17))) / mp.mpf(8)
   ipiv = [mp.zero] * n
@@ -110,6 +130,20 @@ def overwriting_symmetric_indefinite_factorization(A):
 
 
 def overwriting_solve_using_factorization(L, ipiv, b):
+  """Solve A*x = b using a precomputed Bunch-Kaufman factorization.
+
+  Given the factorization A = L * D * L^T computed by
+  :func:`overwriting_symmetric_indefinite_factorization`, solve the linear
+  system by forward/backward substitution. The solution overwrites b.
+
+  Args:
+    L: The factored matrix from overwriting_symmetric_indefinite_factorization.
+    ipiv: Pivot indices from overwriting_symmetric_indefinite_factorization.
+    b: Right-hand side vector (n x 1). Will be overwritten with the solution.
+
+  Returns:
+    The solution vector x (same object as b, modified in-place).
+  """
   # Solve A*X = B, where A = L*D*L**T.
   n = b.rows
 
