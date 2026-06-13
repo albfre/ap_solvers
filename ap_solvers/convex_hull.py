@@ -1,10 +1,27 @@
-from ap_solvers import dense_mp_matrix
-from mpmath import mp
+import logging
 import random
 from itertools import starmap, chain
 from operator import mul
 
+from ap_solvers import dense_mp_matrix
+from mpmath import mp
+
+logger = logging.getLogger(__name__)
+
 class Facet:
+  """A facet (simplex) of the convex hull.
+
+  Each facet is defined by ``dimension`` vertex indices and has an
+  outward-pointing normal and offset that define its supporting hyperplane.
+
+  Attributes:
+    vertex_indices: Indices into the point list that form this facet.
+    normal: Outward-pointing unit normal vector.
+    offset: Signed distance from the origin to the supporting hyperplane.
+    neighbors: Adjacent facets sharing (dimension - 1) vertices.
+    outside_indices: Indices of points above this facet (outside the hull).
+  """
+
   def __init__(self, vertex_indices, points):
     self.vertex_indices = vertex_indices
     self.visit_index = -1
@@ -63,11 +80,17 @@ class ConvexHull:
     self.vertices = list(set(chain(*self.simplices)))
 
   def compute(self):
+    """Compute the convex hull using the Quickhull algorithm.
+
+    Returns:
+      tuple: (simplices, equations) where simplices is a list of vertex index
+        lists and equations is a list of hyperplane coefficients [n1, ..., nd, -offset].
+    """
     self.facets = self.initial_simplex()
     try:
       self.grow_convex_hull()
     except Exception as e:
-      print("An exception occurred:", str(e))
+      logger.warning("An exception occurred: %s", e)
       if self.perturbation_iter == 0:
         self.shortest_distance = min(self.point_distance(p1, p2)
             for i, p1 in enumerate(self.unperturbed_points)
@@ -80,7 +103,7 @@ class ConvexHull:
         raise ValueError("Shortest distance between points is too small in comparison with mp.dps")
       factor = next(x for x in range(20, -1, -1) if x * self.max_perturbation_iter < mp.dps)
       perturbation = 0.5 * self.shortest_distance * 10 ** -(factor * (self.max_perturbation_iter - self.perturbation_iter))
-      print("Perturbing with size: %s" % perturbation)
+      logger.info("Perturbing with size: %s", perturbation)
       self.points = [tuple([coord + mp.mpf(random.uniform(-1, 1)) * perturbation for coord in p]) for p in self.unperturbed_points]
       return self.compute()
 
@@ -96,6 +119,7 @@ class ConvexHull:
     return simplices, equations
 
   def initial_indices(self):
+    """Select initial point indices for seeding the simplex."""
     indices = set()
     for d in range(self.dimension):
       min_element = min(self.points, key=lambda p: p[d])
@@ -110,6 +134,7 @@ class ConvexHull:
     return list(indices)
     
   def initial_simplex(self):
+    """Construct the initial simplex from well-separated points."""
     initial_indices = self.initial_indices()
     facets = []
 
@@ -145,6 +170,7 @@ class ConvexHull:
     return facets
 
   def grow_convex_hull(self):
+    """Iteratively expand the hull by adding the farthest outside points."""
     facets = self.facets
     if any(len(facet.vertex_indices) != self.dimension for facet in facets):
       raise TypeError("All facets must be full dimensional")
@@ -219,7 +245,7 @@ class ConvexHull:
     try:
       self.update_facet_normal_and_offset(origin, facets)
     except Exception as e:
-      print("An exception occurred while calculating equations:", str(e))
+      logger.warning("An exception occurred while calculating equations: %s", e)
       # Compute equations with perturbed points
       self.points = perturbed_points
       self.update_facet_normal_and_offset(origin, facets)
@@ -353,6 +379,7 @@ class ConvexHull:
     return facet
 
   def update_facet_normal_and_offset(self, origin, facets):
+    """Compute inward-oriented normals and offsets for the given facets."""
     dimension = self.dimension
     A = self.A
     assert(A.rows == self.dimension)
@@ -383,9 +410,12 @@ class ConvexHull:
         facet.offset = -facet.offset
 
   def overwriting_solve_linear_system_of_equations(self, A, b):
+    """Solve A x = b in-place using LU factorization with partial pivoting."""
     n = A.cols
-    assert(A.rows == n)
-    assert(len(b) == n)
+    if A.rows != n:
+      raise ValueError(f"Matrix must be square, got {A.rows}x{n}")
+    if len(b) != n:
+      raise ValueError(f"RHS length {len(b)} does not match matrix size {n}")
 
     # Outer product LU with partial pivoting
     # See Algorithm 3.4.1 in Golub and Van Loan - Matrix Computations, 4th Edition
@@ -472,13 +502,15 @@ class ConvexHull:
     return sum(starmap(mul, zip(a, b)))
 
   def is_facet_visible_from_point(self, facet, point):
-    # Returns true if the point is contained in the open negative halfspace of the facet
+    """Return True if the point is strictly outside (visible from) the facet."""
     return self.scalar_product(facet.normal, point) < facet.offset
 
   def point_distance(self, p1, p2):
+    """Euclidean distance between two points."""
     return mp.sqrt(sum((x - y) ** 2 for x, y in zip(p1, p2)))
 
   def distance(self, facet, point):
+    """Signed distance from a point to a facet (positive = outside)."""
     return facet.offset - self.scalar_product(facet.normal, point)
 
   def throw_if_not_convex_polytope(self, facets):
